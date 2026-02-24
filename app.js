@@ -473,6 +473,70 @@ function copyThumbs() {
 
 function printOutput() { window.print(); }
 
+// === Send to Design ===
+function openSendToDesign() {
+  if (!thumbData || !thumbData.thumbnails?.length) { alert('Generate thumbnails first.'); return; }
+  // Set default deadline to 48h from now
+  const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
+  document.getElementById('design-deadline').value = deadline.toISOString().slice(0, 16);
+  // Restore saved producer name
+  document.getElementById('producer-name').value = localStorage.getItem('producer_name') || '';
+  // Preview concepts
+  const preview = document.getElementById('design-concepts-preview');
+  preview.innerHTML = thumbData.thumbnails.map(t => `
+    <div style="background:var(--bg);padding:10px;border-radius:var(--radius);margin-bottom:8px">
+      <strong style="color:var(--accent);font-size:12px">Concept ${t.concept}</strong>: ${esc(t.title)}
+      <div style="font-size:18px;font-weight:800;color:#f59e0b;margin-top:4px">${esc(t.textOverlay)}</div>
+    </div>
+  `).join('');
+  document.getElementById('design-modal').style.display = '';
+}
+
+function closeDesignModal() {
+  document.getElementById('design-modal').style.display = 'none';
+}
+
+async function sendToDesign() {
+  const producerName = document.getElementById('producer-name').value.trim();
+  const deadline = document.getElementById('design-deadline').value;
+  const notes = document.getElementById('design-notes').value.trim();
+  const form = getFormData();
+
+  if (!producerName) { alert('Enter your name.'); return; }
+  if (!deadline) { alert('Set a deadline.'); return; }
+
+  localStorage.setItem('producer_name', producerName);
+
+  try {
+    const res = await fetch('/api/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        createdBy: producerName,
+        show: form.showName,
+        episode: form.episode,
+        deadline: new Date(deadline).toISOString(),
+        concepts: thumbData.thumbnails,
+        notes: notes
+      })
+    });
+
+    if (!res.ok) throw new Error('Failed to create request');
+
+    closeDesignModal();
+    showToast('✅ Thumbnail request sent to Design!');
+  } catch (err) {
+    alert(`Failed to send: ${err.message}`);
+  }
+}
+
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.style.display = '';
+  setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
 function esc(text) {
   if (!text) return '';
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Design Queue — Clip Creator</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body { display: block; }
+    .page-wrap { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
+    .page-header h1 { font-size: 24px; font-weight: 700; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .badge.pending { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .badge.in-progress { background: rgba(79,140,255,0.15); color: #4f8cff; }
+    .badge.completed { background: rgba(52,211,153,0.15); color: #34d399; }
+    .badge.overdue { background: rgba(248,113,113,0.15); color: #f87171; }
+
+    .request-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .request-card.overdue { border-color: #f87171; }
+    .request-top {
+      padding: 20px 24px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      cursor: pointer;
+    }
+    .request-top:hover { background: var(--surface2); }
+    .request-info h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .request-meta { font-size: 13px; color: var(--text-dim); display: flex; gap: 16px; flex-wrap: wrap; }
+    .request-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+
+    .request-detail {
+      display: none;
+      padding: 0 24px 24px;
+      border-top: 1px solid var(--border);
+    }
+    .request-detail.open { display: block; padding-top: 20px; }
+
+    .concept-block {
+      background: var(--bg);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .concept-label { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 6px; }
+    .concept-text-overlay { font-size: 20px; font-weight: 800; color: #f59e0b; margin-top: 6px; }
+
+    .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+    .notes-area {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 14px;
+      font-family: var(--font);
+      resize: vertical;
+      margin-top: 12px;
+    }
+    .notes-area:focus { outline: none; border-color: var(--accent); }
+
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      margin-top: 16px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .upload-zone:hover { border-color: var(--accent); }
+    .upload-zone.dragover { border-color: var(--accent); background: rgba(228,76,101,0.05); }
+    .upload-zone input { display: none; }
+    .upload-zone p { color: var(--text-dim); font-size: 14px; }
+
+    .uploaded-thumb {
+      margin-top: 16px;
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .uploaded-thumb img { max-width: 100%; height: auto; border-radius: var(--radius); }
+
+    .deadline-warn { color: #f87171; font-weight: 600; }
+    .empty-state { text-align: center; padding: 80px 20px; color: var(--text-dim); }
+    .empty-state p { font-size: 16px; }
+
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 24px; }
+    .tab {
+      padding: 8px 16px;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      transition: all 0.15s;
+    }
+    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .tab:hover:not(.active) { background: var(--surface2); }
+    .tab .count { margin-left: 6px; opacity: 0.7; }
+
+    .back-link { color: var(--accent); text-decoration: none; font-size: 14px; }
+    .back-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <div class="page-header">
+      <div>
+        <a href="/" class="back-link">← Back to Clip Creator</a>
+        <h1 style="margin-top:8px">🎨 Design Queue</h1>
+      </div>
+      <div id="role-toggle">
+        <select id="role-select" class="btn btn-secondary" onchange="switchRole()">
+          <option value="designer">Head of Design</option>
+          <option value="producer">Jr. Producer</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="tab-bar" id="tab-bar"></div>
+    <div id="requests-container"></div>
+  </div>
+
+  <script>
+    let requests = [];
+    let currentTab = 'all';
+    let currentRole = 'designer';
+
+    async function loadRequests() {
+      const res = await fetch('/api/requests');
+      requests = await res.json();
+      renderTabs();
+      renderRequests();
+    }
+
+    function switchRole() {
+      currentRole = document.getElementById('role-select').value;
+      renderRequests();
+    }
+
+    function renderTabs() {
+      const counts = { all: requests.length, pending: 0, 'in-progress': 0, completed: 0, overdue: 0 };
+      const now = new Date();
+      requests.forEach(r => {
+        counts[r.status] = (counts[r.status] || 0) + 1;
+        if (r.deadline && new Date(r.deadline) < now && r.status !== 'completed') counts.overdue++;
+      });
+
+      document.getElementById('tab-bar').innerHTML = ['all', 'pending', 'in-progress', 'completed', 'overdue'].map(tab => {
+        const label = tab === 'all' ? 'All' : tab === 'in-progress' ? 'In Progress' : tab.charAt(0).toUpperCase() + tab.slice(1);
+        return `<div class="tab ${currentTab === tab ? 'active' : ''}" onclick="setTab('${tab}')">${label}<span class="count">${counts[tab]}</span></div>`;
+      }).join('');
+    }
+
+    function setTab(tab) {
+      currentTab = tab;
+      renderTabs();
+      renderRequests();
+    }
+
+    function renderRequests() {
+      const now = new Date();
+      let filtered = requests;
+      if (currentTab === 'overdue') {
+        filtered = requests.filter(r => r.deadline && new Date(r.deadline) < now && r.status !== 'completed');
+      } else if (currentTab !== 'all') {
+        filtered = requests.filter(r => r.status === currentTab);
+      }
+
+      if (!filtered.length) {
+        document.getElementById('requests-container').innerHTML = `<div class="empty-state"><p>No ${currentTab === 'all' ? '' : currentTab + ' '}requests</p></div>`;
+        return;
+      }
+
+      document.getElementById('requests-container').innerHTML = filtered.map(r => {
+        const isOverdue = r.deadline && new Date(r.deadline) < now && r.status !== 'completed';
+        const deadlineStr = r.deadline ? new Date(r.deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'No deadline';
+
+        return `
+        <div class="request-card ${isOverdue ? 'overdue' : ''}" id="card-${r.id}">
+          <div class="request-top" onclick="toggleDetail('${r.id}')">
+            <div class="request-info">
+              <h3>${esc(r.show)} — ${esc(r.episode)}</h3>
+              <div class="request-meta">
+                <span>From: ${esc(r.createdBy)}</span>
+                <span>${isOverdue ? '<span class="deadline-warn">⚠ OVERDUE</span> — ' : ''}Due: ${deadlineStr}</span>
+                <span>${new Date(r.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <div class="request-right">
+              <span class="badge ${r.status} ${isOverdue ? 'overdue' : ''}">${r.status}</span>
+            </div>
+          </div>
+          <div class="request-detail" id="detail-${r.id}">
+            ${r.concepts.map((c, i) => `
+              <div class="concept-block">
+                <div class="concept-label">Concept ${c.concept || (i+1)}: ${esc(c.title || '')}</div>
+                <p>${esc(c.layout || '')}</p>
+                <div class="concept-text-overlay">${esc(c.textOverlay || '')}</div>
+                <p style="margin-top:6px;font-size:13px;color:var(--text-dim)">${esc(c.expression || '')}</p>
+                <p style="font-size:13px;color:var(--text-dim)">${esc(c.background || '')}</p>
+              </div>
+            `).join('')}
+            ${r.notes ? `<div class="concept-block"><div class="concept-label">Producer Notes</div><p>${esc(r.notes)}</p></div>` : ''}
+            ${r.designerNotes ? `<div class="concept-block"><div class="concept-label">Designer Notes</div><p>${esc(r.designerNotes)}</p></div>` : ''}
+            ${r.uploadPath ? `<div class="uploaded-thumb"><img src="${r.uploadPath}" alt="Uploaded thumbnail"></div>` : ''}
+
+            ${currentRole === 'designer' ? `
+              <textarea class="notes-area" id="notes-${r.id}" rows="2" placeholder="Add designer notes...">${esc(r.designerNotes || '')}</textarea>
+              ${r.status !== 'completed' ? `
+                <div class="upload-zone" id="upload-${r.id}" onclick="document.getElementById('file-${r.id}').click()"
+                  ondragover="event.preventDefault();this.classList.add('dragover')"
+                  ondragleave="this.classList.remove('dragover')"
+                  ondrop="event.preventDefault();this.classList.remove('dragover');handleUpload('${r.id}',event.dataTransfer.files[0])">
+                  <p>📁 Drop thumbnail here or click to upload</p>
+                  <input type="file" id="file-${r.id}" accept="image/*" onchange="handleUpload('${r.id}',this.files[0])">
+                </div>
+              ` : ''}
+              <div class="action-row">
+                ${r.status === 'pending' ? `<button class="btn btn-primary" onclick="updateStatus('${r.id}','in-progress')">Start Working</button>` : ''}
+                ${r.status === 'in-progress' ? `<button class="btn btn-primary" onclick="markComplete('${r.id}')">✅ Mark Complete</button>` : ''}
+                ${r.status === 'completed' ? `<button class="btn btn-secondary" onclick="updateStatus('${r.id}','in-progress')">Reopen</button>` : ''}
+                <button class="btn btn-secondary" onclick="saveDesignerNotes('${r.id}')">Save Notes</button>
+              </div>
+            ` : `
+              <div class="action-row">
+                <button class="btn btn-danger" onclick="deleteRequest('${r.id}')">Delete Request</button>
+              </div>
+            `}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function toggleDetail(id) {
+      document.getElementById(`detail-${id}`).classList.toggle('open');
+    }
+
+    async function updateStatus(id, status) {
+      await fetch(`/api/requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      await loadRequests();
+    }
+
+    async function markComplete(id) {
+      const notes = document.getElementById(`notes-${id}`)?.value || '';
+      await fetch(`/api/requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed', designerNotes: notes })
+      });
+      await loadRequests();
+    }
+
+    async function saveDesignerNotes(id) {
+      const notes = document.getElementById(`notes-${id}`)?.value || '';
+      await fetch(`/api/requests/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ designerNotes: notes })
+      });
+      alert('Notes saved');
+    }
+
+    async function handleUpload(id, file) {
+      if (!file) return;
+      const res = await fetch(`/api/requests/${id}/upload`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type },
+        body: file
+      });
+      if (res.ok) await loadRequests();
+      else alert('Upload failed');
+    }
+
+    async function deleteRequest(id) {
+      if (!confirm('Delete this request?')) return;
+      await fetch(`/api/requests/${id}`, { method: 'DELETE' });
+      await loadRequests();
+    }
+
+    function esc(t) {
+      if (!t) return '';
+      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    loadRequests();
+    // Auto-refresh every 30s
+    setInterval(loadRequests, 30000);
+  </script>
+</body>
+</html>
