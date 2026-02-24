@@ -199,22 +199,24 @@ function renderClips() {
   const container = document.getElementById('clips-content');
   container.innerHTML = clipData.map(clip => `
     <div class="clip-card" data-rank="${clip.rank}">
-      <div class="clip-header">
-        <span class="clip-rank">#${clip.rank} Pick</span>
-        <span class="clip-time">${clip.startTime} → ${clip.endTime} (${clip.durationSec}s)</span>
+      <div class="clip-card-inner">
+        <div class="clip-header">
+          <span class="clip-rank">#${clip.rank}</span>
+          <span class="clip-time">${clip.startTime} → ${clip.endTime} · ${clip.durationSec}s</span>
+        </div>
+        <div class="clip-title">${esc(clip.title)}</div>
+        <div class="clip-hook">${esc(clip.hook)}</div>
+        <div class="clip-quote">${esc(clip.quote)}</div>
+        <div class="clip-meta">
+          ${(clip.tags || []).map(t => `<span class="clip-tag ${t}">${t}</span>`).join('')}
+        </div>
+        <div class="clip-caption">
+          <strong>Caption</strong>
+          <p>${esc(clip.caption)}</p>
+          <p style="color:var(--teal);margin-top:6px;font-family:var(--mono);font-size:12px">${esc(clip.hashtags || '')}</p>
+        </div>
+        ${clip.whyItWorks ? `<div class="clip-why">${esc(clip.whyItWorks)}</div>` : ''}
       </div>
-      <div class="clip-title">${esc(clip.title)}</div>
-      <div class="clip-hook">${esc(clip.hook)}</div>
-      <div class="clip-quote">${esc(clip.quote)}</div>
-      <div class="clip-meta">
-        ${(clip.tags || []).map(t => `<span class="clip-tag ${t}">${t}</span>`).join('')}
-      </div>
-      <div class="clip-caption">
-        <strong>Suggested Caption</strong>
-        <p>${esc(clip.caption)}</p>
-        <p style="color:var(--info);margin-top:4px">${esc(clip.hashtags || '')}</p>
-      </div>
-      <p style="font-size:12px;color:var(--text-dim);margin-top:8px"><em>${esc(clip.whyItWorks || '')}</em></p>
     </div>
   `).join('');
 }
@@ -377,7 +379,7 @@ function renderThumbs() {
         <div class="thumb-concept-label">Background</div>
         <p>${esc(t.background)}</p>
       </div>
-      <p style="font-size:12px;color:var(--text-dim);margin-top:10px"><em>${esc(t.whyItWorks || '')}</em></p>
+      ${t.whyItWorks ? `<div class="thumb-why">${esc(t.whyItWorks)}</div>` : ''}
     </div>
   `).join('');
 }
