@@ -1,3 +1,155 @@
+// === Show Profiles ===
+const SHOW_PROFILES = {
+  check_the_mic: {
+    name: "Check the Mic",
+    hosts: ["Sam Monson", "Steve Palazzolo"],
+    whatWorks: [
+      "Debate and disagreement between hosts (5.8x multiplier)",
+      "Sam taking contrarian positions and defending with data",
+      "Humor and personality (4.8x multiplier)",
+      "Draft content and position rankings",
+      "Immediate post-game reactions with strong opinions",
+    ],
+    whatFails: [
+      "Generic player profiles without an attached opinion",
+      "Short clips under 7 minutes",
+      "Pure information without entertainment",
+    ],
+    clipDna: "Sam takes a controversial position + defends with data. Hosts disagree. Post-game reactions with strong opinions. Sam dunks on mainstream hot-take culture using actual analysis.",
+  },
+  in_the_bayou: {
+    name: "In The Bayou",
+    hosts: ["Tyrann Mathieu", "Tyrell McCall"],
+    whatWorks: [
+      "Tyrann's personal stories from NFL career and NOLA upbringing (50x multiplier)",
+      "New Orleans / Louisiana culture content (14x multiplier)",
+      "Humor and personality (10.7x multiplier)",
+      "Hot takes and reactions about players Tyrann knows personally (8.3x)",
+      "Player gossip tied to Tyrann's insider knowledge",
+    ],
+    whatFails: [
+      "Short informational clips without personality (<7 min = death)",
+      "Generic football analysis without personal stories",
+      "Guest-focused episodes where Tyrann isn't the star",
+    ],
+    clipDna: "Tyrann tells personal stories from his NFL career or NOLA upbringing. Tyrann gives hot takes about players he actually played with. NOLA culture debates. Genuinely funny, unscripted moments. Tyrann reacts emotionally to NFL news.",
+  },
+  home_grown: {
+    name: "Home Grown",
+    hosts: ["David Carr", "Derek Carr"],
+    whatWorks: [
+      "Raiders-specific deep dives with insider access",
+      "Brother dynamic and disagreements",
+      "Coaching and front office insider knowledge",
+      "Draft strategy and team-building analysis",
+    ],
+    whatFails: [
+      "Generic NFL content not tied to a specific team angle",
+      "Awards predictions and listicles",
+      "Non-football content (games, trivia)",
+    ],
+    clipDna: "David and Derek debating Raiders decisions. Insider access to coaching/front office thinking. Brother dynamic creates natural entertainment. Team-specific deep dives with real knowledge.",
+  },
+  nfl_spotlight: {
+    name: "NFL Spotlight",
+    hosts: ["Ari Meirov"],
+    whatWorks: [
+      "Aggregated lists and rankings",
+      "Hot seat discussions for coaches and GMs",
+      "Interviews with scouting/front office people",
+    ],
+    whatFails: [
+      "Single player profiles (35-41 views)",
+      "Low-energy interviews without stakes",
+      "Generic roster updates",
+    ],
+    clipDna: "Breaking news reactions. Insider scoops and reporting. Ranked lists and aggregated opinions. Interviews where the guest reveals something new.",
+  },
+  nfl_iq: {
+    name: "NFL IQ",
+    hosts: ["Logan Ryan", "Cynthia Frelund"],
+    whatWorks: [
+      "Playoff and postseason content",
+      "Logan's personality, trash talk stories, and humor",
+      "Debate between Logan's experience and Cynthia's analytics",
+      "Game previews with real stakes",
+    ],
+    whatFails: [
+      "Pure analytics episodes without personality",
+      "Regular season game previews for small-market teams",
+      "Explainer content (how analytics work)",
+    ],
+    clipDna: "Logan being entertaining and dropping stories. Cynthia's data contradicting Logan's gut feeling. Playoff previews and predictions with stakes. Logan's trash talk and player stories.",
+  },
+  nof: {
+    name: "NOF",
+    hosts: ["Nick Underhill"],
+    whatWorks: [
+      "Saints-specific content (ALL top videos are Saints-focused)",
+      "Draft and trade analysis for Saints",
+      "Insider reporting with front office sources",
+      "Salary cap and roster-building analysis",
+    ],
+    whatFails: [
+      "Generic NFL content not tied to Saints",
+      "Awards and league-wide predictions",
+      "Non-news episodes during slow periods",
+    ],
+    clipDna: "Saints draft analysis and trade scenarios. Insider reporting from front office sources. Salary cap breakdowns specific to Saints. Local angle on national NFL stories.",
+  },
+  st_brown: {
+    name: "St. Brown Podcast",
+    hosts: ["Amon-Ra St. Brown"],
+    whatWorks: [
+      "Active player perspective on current NFL events",
+      "Behind-the-scenes NFL life content",
+      "Reactions to games Amon-Ra played in",
+      "Player vs media narrative debates",
+    ],
+    whatFails: [
+      "Generic analysis that any podcast could do",
+      "Episodes where Amon-Ra's player perspective isn't featured",
+    ],
+    clipDna: "Amon-Ra's insider perspective as an active star player. Reactions to his own games and performances. Behind-the-scenes stories from the locker room, practice, and game day. Player perspective on media narratives.",
+  },
+  blocks: {
+    name: "Blocks (Neal Brennan)",
+    hosts: ["Neal Brennan"],
+    whatWorks: [
+      "Neal's sharp, self-aware comedy and cultural commentary",
+      "Mental health, therapy, and vulnerability moments",
+      "Hot takes on pop culture and media",
+      "Comedian guests getting real and unguarded",
+    ],
+    whatFails: [
+      "Long setup without payoff",
+      "Generic celebrity interview format",
+    ],
+    clipDna: "Neal being brutally honest and funny. Vulnerable moments that hit emotionally. Sharp observations on comedy, culture, or mental health. Guest drops something unexpected and real.",
+  },
+  other: {
+    name: "Other",
+    hosts: [],
+    whatWorks: ["Engaging stories", "Hot takes and controversy", "Humor and personality", "Insider knowledge"],
+    whatFails: ["Generic content without a strong POV", "Pure information without entertainment"],
+    clipDna: "Strong opinions, personal stories, emotional moments, humor, and insider knowledge.",
+  },
+};
+
+function getShowProfile(key) {
+  return SHOW_PROFILES[key] || SHOW_PROFILES.other;
+}
+
+function buildShowContext(profile) {
+  return `HOSTS: ${profile.hosts.length ? profile.hosts.join(', ') : 'Unknown'}
+WHAT PERFORMS BEST FOR THIS SHOW:
+${profile.whatWorks.map(w => `  - ${w}`).join('\n')}
+WHAT UNDERPERFORMS:
+${profile.whatFails.map(f => `  - ${f}`).join('\n')}
+CLIP DNA (what goes viral for this specific show):
+${profile.clipDna}`;
+}
+
 // === State ===
 let currentMode = 'clips';
 let clipData = [];
@@ -54,9 +206,12 @@ function backToForm() {
 }
 
 function getFormData() {
+  const showKey = document.getElementById('show-select').value;
+  const profile = getShowProfile(showKey);
   return {
-    show: document.getElementById('show-select').value,
-    showName: document.getElementById('show-select').selectedOptions[0].text,
+    show: showKey,
+    showName: profile.name,
+    showContext: buildShowContext(profile),
     episode: document.getElementById('episode-input').value,
     transcript: document.getElementById('transcript-input').value,
     context: document.getElementById('context-input').value,
@@ -66,32 +221,44 @@ function getFormData() {
 }
 
 // === API Call ===
-async function callClaude(prompt, maxTokens = 6000) {
+async function callClaude(prompt, maxTokens = 6000, retries = 4) {
   const apiKey = localStorage.getItem('anthropic_api_key');
   if (!apiKey) { openSettings(); throw new Error('No API key'); }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
 
-  if (!response.ok) {
+    if (response.ok) {
+      const data = await response.json();
+      return data.content[0].text;
+    }
+
     const err = await response.json().catch(() => ({}));
+
+    // Retry on 529 (overloaded) with exponential backoff
+    if (response.status === 529 && attempt < retries) {
+      const waitSec = Math.pow(2, attempt + 1); // 2s, 4s, 8s, 16s
+      document.getElementById('loading-text').textContent =
+        `API overloaded — retrying in ${waitSec}s... (attempt ${attempt + 1}/${retries})`;
+      await new Promise(r => setTimeout(r, waitSec * 1000));
+      continue;
+    }
+
     throw new Error(err.error?.message || `API error: ${response.status}`);
   }
-
-  const data = await response.json();
-  return data.content[0].text;
 }
 
 // === Generate ===
@@ -137,12 +304,17 @@ TARGET CLIP LENGTH: ${form.clipLength} seconds
 MAX CLIPS: ${form.clipCount}
 ${form.context ? `CONTEXT: ${form.context}` : ''}
 
+## SHOW PROFILE:
+${form.showContext}
+
 TRANSCRIPT:
 ${form.transcript}
 
 ---
 
 Analyze this transcript and identify the ${form.clipCount} best moments for vertical short-form clips (YouTube Shorts, TikTok, Instagram Reels).
+
+Use the SHOW PROFILE above to rank clips based on THIS SHOW'S specific clip DNA — not generic "good content."
 
 For each clip, evaluate:
 - HOOK STRENGTH: Does the first 3 seconds grab attention?
@@ -228,6 +400,9 @@ async function generateVod(form) {
 SHOW: ${form.showName}
 EPISODE: ${form.episode}
 ${form.context ? `CONTEXT: ${form.context}` : ''}
+
+## SHOW PROFILE:
+${form.showContext}
 
 TRANSCRIPT:
 ${form.transcript}
@@ -317,6 +492,9 @@ async function generateThumbs(form) {
 SHOW: ${form.showName}
 EPISODE: ${form.episode}
 ${form.context ? `CONTEXT: ${form.context}` : ''}
+
+## SHOW PROFILE:
+${form.showContext}
 
 TRANSCRIPT:
 ${form.transcript}
