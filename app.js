@@ -1,3 +1,7 @@
+// ============================================================
+// CLIP CREATOR — app.js
+// ============================================================
+
 // === Show Profiles ===
 const SHOW_PROFILES = {
   check_the_mic: {
@@ -152,12 +156,35 @@ ${profile.clipDna}`;
 
 // === State ===
 let currentMode = 'clips';
-let clipData = [];
-let vodData = null;
-let thumbData = null;
+let analysisData = null;   // unified result from single Claude call
+let transcriptText = '';   // raw transcript (from paste or file)
+
+// === Login ===
+function checkLogin() {
+  const authed = sessionStorage.getItem('clip_creator_auth');
+  if (authed === 'true') {
+    document.getElementById('login-screen').style.display = 'none';
+  }
+  // Otherwise login screen stays visible
+}
+
+function attemptLogin() {
+  const pw = document.getElementById('login-password').value;
+  const err = document.getElementById('login-error');
+  if (pw === '33rdclips2026') {
+    sessionStorage.setItem('clip_creator_auth', 'true');
+    document.getElementById('login-screen').style.display = 'none';
+    err.style.display = 'none';
+  } else {
+    err.style.display = '';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-password').focus();
+  }
+}
 
 // === Init ===
 document.addEventListener('DOMContentLoaded', () => {
+  checkLogin();
   if (!localStorage.getItem('anthropic_api_key')) openSettings();
 });
 
@@ -167,14 +194,35 @@ function selectMode(mode) {
   document.querySelectorAll('.mode-item').forEach(el => {
     el.classList.toggle('active', el.dataset.mode === mode);
   });
-  const titles = { clips: 'Vertical Clips', vod: 'VOD Suggestions', thumbs: 'Thumbnails' };
-  document.getElementById('page-title').textContent = titles[mode];
-  // Show relevant output if we have data
-  hideAllOutputs();
-  if (mode === 'clips' && clipData.length) document.getElementById('clips-output').style.display = '';
-  else if (mode === 'vod' && vodData) document.getElementById('vod-output').style.display = '';
-  else if (mode === 'thumbs' && thumbData) document.getElementById('thumbs-output').style.display = '';
-  else document.getElementById('form-section').style.display = '';
+
+  const titles = {
+    clips: 'Vertical Clips',
+    long: 'Long Clips',
+    vod: 'VOD Segments',
+    thumbs: 'Thumbnails',
+  };
+  if (titles[mode]) {
+    document.getElementById('page-title').textContent = titles[mode];
+  }
+
+  // If results are showing, scroll to the relevant section
+  const resultsVisible = document.getElementById('results-output').style.display !== 'none';
+  if (resultsVisible && mode !== 'queue') {
+    const sectionMap = { clips: 'sec-clips', long: 'sec-long', vod: 'sec-vod', thumbs: 'sec-thumbs' };
+    const secId = sectionMap[mode];
+    if (secId) {
+      const el = document.getElementById(secId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Open the section if collapsed
+        const body = document.getElementById('body-' + mode);
+        if (body && body.style.display === 'none') toggleSection(mode);
+      }
+    }
+  } else if (!resultsVisible) {
+    document.getElementById('form-section').style.display = '';
+  }
+
   document.getElementById('sidebar').classList.remove('open');
 }
 
@@ -193,35 +241,101 @@ function saveSettings() {
   closeSettings();
 }
 
+// === Transcript Mode Toggle ===
+function setTranscriptMode(mode) {
+  const pasteBtn = document.getElementById('toggle-paste');
+  const uploadBtn = document.getElementById('toggle-upload');
+  const textarea = document.getElementById('transcript-input');
+  const dropzone = document.getElementById('transcript-upload');
+
+  if (mode === 'paste') {
+    pasteBtn.classList.add('active');
+    uploadBtn.classList.remove('active');
+    textarea.style.display = '';
+    dropzone.style.display = 'none';
+  } else {
+    pasteBtn.classList.remove('active');
+    uploadBtn.classList.add('active');
+    textarea.style.display = 'none';
+    dropzone.style.display = '';
+  }
+}
+
+// === File Drop / Upload ===
+function handleFileDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  const file = event.dataTransfer.files[0];
+  if (file) readTranscriptFile(file);
+}
+
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (file) readTranscriptFile(file);
+}
+
+function readTranscriptFile(file) {
+  const allowed = ['.txt', '.csv', '.srt', '.vtt'];
+  const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+  if (!allowed.includes(ext)) {
+    alert(`Unsupported file type: ${ext}. Use .txt, .csv, .srt, or .vtt`);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    transcriptText = e.target.result;
+    const nameEl = document.getElementById('dropzone-filename');
+    nameEl.textContent = `✓ ${file.name} (${Math.round(file.size / 1024)} KB)`;
+    nameEl.style.display = '';
+    // Also populate the textarea in case user switches back to paste mode
+    document.getElementById('transcript-input').value = transcriptText;
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 // === Helpers ===
-function hideAllOutputs() {
-  ['clips-output', 'vod-output', 'thumbs-output', 'loading-section'].forEach(id => {
+function hideAllSections() {
+  ['results-output', 'loading-section'].forEach(id => {
     document.getElementById(id).style.display = 'none';
   });
 }
 
 function backToForm() {
-  hideAllOutputs();
+  hideAllSections();
   document.getElementById('form-section').style.display = '';
 }
 
 function getFormData() {
   const showKey = document.getElementById('show-select').value;
   const profile = getShowProfile(showKey);
+  // Get transcript from textarea (covers both paste and uploaded-then-paste modes)
+  const transcript = document.getElementById('transcript-input').value.trim() || transcriptText;
   return {
     show: showKey,
     showName: profile.name,
     showContext: buildShowContext(profile),
     episode: document.getElementById('episode-input').value,
-    transcript: document.getElementById('transcript-input').value,
+    transcript,
     context: document.getElementById('context-input').value,
     clipCount: document.getElementById('clip-count').value,
     clipLength: document.getElementById('clip-length').value
   };
 }
 
+// === Collapsible Sections ===
+function toggleSection(id) {
+  const body = document.getElementById('body-' + id);
+  const chev = document.getElementById('chev-' + id);
+  const sec = document.getElementById('sec-' + id);
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  if (chev) { chev.textContent = isOpen ? '▶' : '▼'; chev.classList.toggle('open', !isOpen); }
+  if (sec) sec.classList.toggle('open', !isOpen);
+}
+
 // === API Call ===
-async function callClaude(prompt, maxTokens = 6000, retries = 4) {
+async function callClaude(prompt, maxTokens = 8000, retries = 4) {
   const apiKey = localStorage.getItem('anthropic_api_key');
   if (!apiKey) { openSettings(); throw new Error('No API key'); }
 
@@ -250,9 +364,9 @@ async function callClaude(prompt, maxTokens = 6000, retries = 4) {
 
     // Retry on 529 (overloaded) with exponential backoff
     if (response.status === 529 && attempt < retries) {
-      const waitSec = Math.pow(2, attempt + 1); // 2s, 4s, 8s, 16s
+      const waitSec = Math.pow(2, attempt + 1);
       document.getElementById('loading-text').textContent =
-        `API overloaded — retrying in ${waitSec}s... (attempt ${attempt + 1}/${retries})`;
+        `API overloaded — retrying in ${waitSec}s… (attempt ${attempt + 1}/${retries})`;
       await new Promise(r => setTimeout(r, waitSec * 1000));
       continue;
     }
@@ -261,30 +375,140 @@ async function callClaude(prompt, maxTokens = 6000, retries = 4) {
   }
 }
 
-// === Generate ===
+// === Build Unified Prompt ===
+function buildUnifiedPrompt(form) {
+  return `You are an expert podcast producer and YouTube strategist for The 33rd Team podcast network.
+
+Analyze this transcript and produce a COMPLETE episode guide in a single pass.
+
+SHOW: ${form.showName}
+EPISODE: ${form.episode}
+TARGET VERTICAL CLIP LENGTH: ${form.clipLength} seconds
+MAX VERTICAL CLIPS: ${form.clipCount}
+${form.context ? `ADDITIONAL CONTEXT: ${form.context}` : ''}
+
+## SHOW PROFILE — USE THIS TO RANK AND PRIORITIZE ALL CONTENT:
+${form.showContext}
+
+TRANSCRIPT:
+${form.transcript}
+
+---
+
+Analyze the transcript and return a JSON object with this EXACT structure.
+Return ONLY valid JSON — no markdown, no code fences, no explanation.
+
+{
+  "episode_titles": [
+    "Title option 1 (curiosity gap / clickbait but honest)",
+    "Title option 2 (direct / SEO-friendly, under 70 chars)",
+    "Title option 3 (provocative / bold take)",
+    "Title option 4 (guest-name lead if notable guest)",
+    "Title option 5 (emotional / story-driven)"
+  ],
+  "viral_clips": [
+    {
+      "rank": 1,
+      "title": "Short punchy title",
+      "hook": "The opening line or moment that grabs attention in the first 3 seconds",
+      "quote": "The key 2-3 lines that make this clip fire",
+      "tags": ["viral"],
+      "startTime": "HH:MM:SS",
+      "endTime": "HH:MM:SS",
+      "durationSec": 65,
+      "caption": "Suggested social media caption with emojis",
+      "hashtags": "#tag1 #tag2 #tag3",
+      "whyItWorks": "One sentence on viral potential based on show DNA"
+    }
+  ],
+  "long_clips": [
+    {
+      "rank": 1,
+      "title": "Short punchy title for this long clip",
+      "quote": "The key line or hook that defines this segment",
+      "start": "HH:MM:SS",
+      "end": "HH:MM:SS",
+      "duration_min": 10,
+      "why": "Why this 8+ minute section works as a standalone YouTube upload"
+    }
+  ],
+  "vod_segments": [
+    {
+      "name": "Segment name",
+      "start": "HH:MM:SS",
+      "end": "HH:MM:SS",
+      "title_a": "YouTube title option A (curiosity gap)",
+      "title_b": "YouTube title option B (direct/SEO)",
+      "title_c": "YouTube title option C (provocative)",
+      "description": "What this segment covers"
+    }
+  ],
+  "thumbnail_quotes": [
+    {
+      "quote": "Short punchy quote (max 8 words)",
+      "timecode": "HH:MM:SS",
+      "speaker": "Speaker name",
+      "suggested_overlay": "Describe the ideal thumbnail text treatment and visual"
+    }
+  ],
+  "topics": [
+    {
+      "name": "Topic name",
+      "start": "HH:MM:SS",
+      "end": "HH:MM:SS",
+      "description": "Brief description of this topic segment"
+    }
+  ],
+  "ad_breaks": [
+    {
+      "timecode": "HH:MM:SS",
+      "reason": "Why this is a natural break point"
+    }
+  ],
+  "reference_frames": [
+    {
+      "timecode": "HH:MM:SS",
+      "description": "Describe the visual moment for thumbnail designers — facial expression, body language, energy, context"
+    }
+  ]
+}
+
+RULES:
+- Rank viral_clips by actual performance potential using the show's clip DNA above — not generic metrics.
+- Include ${form.clipCount} vertical clips, 4-6 long clips (8+ min each), 5-8 VOD segments, 5 episode titles.
+- Include 5-8 thumbnail quotes (max 8 words each, visually impactful).
+- Include 3-5 ad break suggestions at natural topic transitions.
+- Include 5-8 reference frames to help a designer who hasn't seen the episode.
+- Include 5-10 topics/segments covering the full episode.
+- Long clips must be 8+ minutes each — self-contained stories, debates, or segments.
+- Viral clip tags: viral, funny, insightful, emotional, controversial, hot-take, storytelling, relatable.
+- Use HH:MM:SS format for all timecodes. If no timestamps in transcript, estimate from avg 150 words/min speaking pace.`;
+}
+
+// === Generate (unified single call) ===
 async function generate() {
   const form = getFormData();
-  if (!form.transcript.trim()) { alert('Paste a transcript first.'); return; }
+  if (!form.transcript.trim()) { alert('Paste or upload a transcript first.'); return; }
 
   document.getElementById('form-section').style.display = 'none';
-  hideAllOutputs();
+  hideAllSections();
   document.getElementById('loading-section').style.display = '';
   document.getElementById('generate-btn').disabled = true;
+  document.getElementById('loading-text').textContent = 'Analyzing transcript…';
 
   try {
-    // Run all three analyses
-    document.getElementById('loading-text').textContent = 'Finding viral clip moments...';
-    await generateClips(form);
+    const raw = await callClaude(buildUnifiedPrompt(form));
+    analysisData = parseJSON(raw);
+    if (!analysisData) throw new Error('Failed to parse analysis data from Claude response');
 
-    document.getElementById('loading-text').textContent = 'Generating VOD suggestions...';
-    await generateVod(form);
+    // Store episode/show for exports
+    analysisData._meta = { show: form.showName, episode: form.episode, transcript: form.transcript };
 
-    document.getElementById('loading-text').textContent = 'Creating thumbnail concepts...';
-    await generateThumbs(form);
-
-    // Show current mode's output
     document.getElementById('loading-section').style.display = 'none';
-    selectMode(currentMode);
+    renderResults();
+    document.getElementById('results-output').style.display = '';
+    document.getElementById('form-section').style.display = 'none';
+
   } catch (err) {
     alert(`Generation failed: ${err.message}`);
     document.getElementById('loading-section').style.display = 'none';
@@ -294,87 +518,69 @@ async function generate() {
   }
 }
 
-// === Clips ===
-async function generateClips(form) {
-  const prompt = `You are an expert social media producer who identifies viral-worthy vertical clip moments from podcast transcripts. You work for The 33rd Team podcast network.
-
-SHOW: ${form.showName}
-EPISODE: ${form.episode}
-TARGET CLIP LENGTH: ${form.clipLength} seconds
-MAX CLIPS: ${form.clipCount}
-${form.context ? `CONTEXT: ${form.context}` : ''}
-
-## SHOW PROFILE:
-${form.showContext}
-
-TRANSCRIPT:
-${form.transcript}
-
----
-
-Analyze this transcript and identify the ${form.clipCount} best moments for vertical short-form clips (YouTube Shorts, TikTok, Instagram Reels).
-
-Use the SHOW PROFILE above to rank clips based on THIS SHOW'S specific clip DNA — not generic "good content."
-
-For each clip, evaluate:
-- HOOK STRENGTH: Does the first 3 seconds grab attention?
-- EMOTIONAL PEAK: Is there a laugh, gasp, hot take, or revelation?
-- STANDALONE VALUE: Does it make sense without full episode context?
-- SHAREABILITY: Would someone send this to a friend?
-- CONTROVERSY/DEBATE: Does it invite comments?
-
-Return ONLY valid JSON (no markdown, no code fences) in this exact format:
-{
-  "clips": [
-    {
-      "rank": 1,
-      "title": "Short punchy title for the clip",
-      "startTime": "HH:MM:SS",
-      "endTime": "HH:MM:SS",
-      "durationSec": 65,
-      "hook": "The first line or moment that grabs attention",
-      "quote": "The key 2-3 lines that make this clip fire",
-      "tags": ["viral", "funny"],
-      "platform": "all",
-      "caption": "Suggested social media caption with emojis",
-      "hashtags": "#tag1 #tag2 #tag3",
-      "whyItWorks": "Brief explanation of viral potential"
-    }
-  ]
+function parseJSON(raw) {
+  try { return JSON.parse(raw); } catch { /* try extraction */ }
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (match) { try { return JSON.parse(match[0]); } catch { /* fall through */ } }
+  return null;
 }
 
-Tags should be from: viral, funny, insightful, emotional, controversial, hot-take, storytelling, relatable
-
-If no timestamps are in the transcript, estimate them based on average speaking pace (~150 words/min) from the start. Use HH:MM:SS format always.
-
-Rank clips from most viral potential to least.`;
-
-  const raw = await callClaude(prompt);
-  try {
-    const parsed = JSON.parse(raw);
-    clipData = parsed.clips || [];
-    renderClips();
-  } catch {
-    // Try to extract JSON from response
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      clipData = parsed.clips || [];
-      renderClips();
-    } else {
-      throw new Error('Failed to parse clip data');
-    }
-  }
+// === Render All Results ===
+function renderResults() {
+  renderEpisodeTitles();
+  renderLongClips();
+  renderViralClips();
+  renderVodSegments();
+  renderThumbnailQuotes();
+  renderTopics();
+  renderAdBreaks();
+  renderReferenceFrames();
 }
 
-function renderClips() {
-  const container = document.getElementById('clips-content');
-  container.innerHTML = clipData.map(clip => `
+// --- Episode Titles ---
+function renderEpisodeTitles() {
+  const titles = analysisData.episode_titles || [];
+  const el = document.getElementById('body-titles');
+  if (!titles.length) { el.innerHTML = '<p class="empty-state">No title suggestions generated.</p>'; return; }
+  el.innerHTML = `<div class="titles-list">` +
+    titles.map((t, i) => `
+      <div class="title-row">
+        <span class="title-num">${i + 1}</span>
+        <span class="title-text">${esc(t)}</span>
+        <button class="btn-copy-small" onclick="copyText(${JSON.stringify(t)})">Copy</button>
+      </div>`).join('') +
+    `</div>`;
+}
+
+// --- Long Clips ---
+function renderLongClips() {
+  const clips = analysisData.long_clips || [];
+  const el = document.getElementById('body-long');
+  if (!clips.length) { el.innerHTML = '<p class="empty-state">No long clips found.</p>'; return; }
+  el.innerHTML = clips.map(lc => `
+    <div class="long-clip-card">
+      <div class="long-clip-header">
+        <span class="long-clip-rank">#${lc.rank}</span>
+        <span class="long-clip-time">${esc(lc.start || '')} → ${esc(lc.end || '')} · ~${lc.duration_min || '?'} min</span>
+      </div>
+      <div class="long-clip-title">${esc(lc.title)}</div>
+      <div class="long-clip-quote">"${esc(lc.quote)}"</div>
+      ${lc.why ? `<div class="long-clip-why">${esc(lc.why)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// --- Viral Clips ---
+function renderViralClips() {
+  const clips = analysisData.viral_clips || [];
+  const el = document.getElementById('body-clips');
+  if (!clips.length) { el.innerHTML = '<p class="empty-state">No vertical clips found.</p>'; return; }
+  el.innerHTML = clips.map(clip => `
     <div class="clip-card" data-rank="${clip.rank}">
       <div class="clip-card-inner">
         <div class="clip-header">
           <span class="clip-rank">#${clip.rank}</span>
-          <span class="clip-time">${clip.startTime} → ${clip.endTime} · ${clip.durationSec}s</span>
+          <span class="clip-time">${esc(clip.startTime || '')} → ${esc(clip.endTime || '')} · ${clip.durationSec || '?'}s</span>
         </div>
         <div class="clip-title">${esc(clip.title)}</div>
         <div class="clip-hook">${esc(clip.hook)}</div>
@@ -393,223 +599,364 @@ function renderClips() {
   `).join('');
 }
 
-// === VOD ===
-async function generateVod(form) {
-  const prompt = `You are a YouTube strategist for The 33rd Team podcast network. Generate VOD (full episode upload) optimization suggestions.
-
-SHOW: ${form.showName}
-EPISODE: ${form.episode}
-${form.context ? `CONTEXT: ${form.context}` : ''}
-
-## SHOW PROFILE:
-${form.showContext}
-
-TRANSCRIPT:
-${form.transcript}
-
----
-
-Generate YouTube VOD optimization. Return ONLY valid JSON (no markdown, no code fences):
-{
-  "titles": [
-    { "option": "A", "text": "Title option 1", "style": "curiosity gap" },
-    { "option": "B", "text": "Title option 2", "style": "direct/SEO" },
-    { "option": "C", "text": "Title option 3", "style": "provocative" }
-  ],
-  "descriptions": [
-    {
-      "option": "A",
-      "text": "Full YouTube description with timestamps, links, social handles, subscribe CTA. Use actual content from the transcript for timestamp chapters."
-    }
-  ],
-  "tags": ["tag1", "tag2", "tag3"],
-  "chapters": [
-    { "time": "0:00", "title": "Chapter title" }
-  ]
-}
-
-For titles: one curiosity-gap style, one direct/SEO-friendly, one provocative/clickable. All under 70 chars.
-For description: include timestamps as chapters based on the actual transcript topics.
-For tags: 15-20 relevant YouTube tags for discoverability.`;
-
-  const raw = await callClaude(prompt);
-  try {
-    vodData = JSON.parse(raw);
-  } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) vodData = JSON.parse(match[0]);
-    else throw new Error('Failed to parse VOD data');
-  }
-  renderVod();
-}
-
-function renderVod() {
-  const c = document.getElementById('vod-content');
-  let html = '';
-
-  // Titles
-  html += `<div class="vod-card"><h3>📌 Title Options</h3>`;
-  (vodData.titles || []).forEach(t => {
-    html += `<div class="vod-option">
-      <div class="vod-option-label">Option ${t.option} — ${t.style}</div>
-      <div class="vod-option-text">${esc(t.text)}</div>
-    </div>`;
-  });
-  html += `</div>`;
-
-  // Description
-  (vodData.descriptions || []).forEach(d => {
-    html += `<div class="vod-card"><h3>📝 Description (Option ${d.option})</h3>
-      <div class="vod-description">${esc(d.text)}</div>
-    </div>`;
-  });
-
-  // Chapters
-  if (vodData.chapters && vodData.chapters.length) {
-    html += `<div class="vod-card"><h3>📑 Chapters</h3>`;
-    vodData.chapters.forEach(ch => {
-      html += `<div class="vod-option">
-        <span style="font-family:var(--mono);color:var(--info)">${ch.time}</span> — ${esc(ch.title)}
-      </div>`;
-    });
-    html += `</div>`;
-  }
-
-  // Tags
-  if (vodData.tags && vodData.tags.length) {
-    html += `<div class="vod-card"><h3>🏷 Tags</h3><div class="vod-tags">`;
-    vodData.tags.forEach(t => { html += `<span class="vod-tag">${esc(t)}</span>`; });
-    html += `</div></div>`;
-  }
-
-  c.innerHTML = html;
-}
-
-// === Thumbnails ===
-async function generateThumbs(form) {
-  const prompt = `You are a thumbnail designer/strategist for The 33rd Team podcast network on YouTube. Generate thumbnail concepts.
-
-SHOW: ${form.showName}
-EPISODE: ${form.episode}
-${form.context ? `CONTEXT: ${form.context}` : ''}
-
-## SHOW PROFILE:
-${form.showContext}
-
-TRANSCRIPT:
-${form.transcript}
-
----
-
-Generate 3-4 thumbnail concepts. Return ONLY valid JSON (no markdown, no code fences):
-{
-  "thumbnails": [
-    {
-      "concept": "A",
-      "title": "Concept name",
-      "layout": "Detailed description of the thumbnail layout, positioning, and composition",
-      "textOverlay": "THE BOLD TEXT ON THE THUMBNAIL",
-      "expression": "Description of talent facial expression / emotion to capture",
-      "background": "Background treatment (color, gradient, image)",
-      "style": "clean/bold/meme/editorial",
-      "whyItWorks": "Why this thumbnail would get clicks"
-    }
-  ]
-}
-
-Thumbnail best practices:
-- Max 3-5 words of text overlay (LARGE, readable on mobile)
-- High contrast, bold colors
-- Expressive face close-ups perform best
-- Create curiosity or emotion
-- Avoid clutter — simple compositions win
-- Consider the show's brand and talent`;
-
-  const raw = await callClaude(prompt, 3000);
-  try {
-    thumbData = JSON.parse(raw);
-  } catch {
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (match) thumbData = JSON.parse(match[0]);
-    else throw new Error('Failed to parse thumbnail data');
-  }
-  renderThumbs();
-}
-
-function renderThumbs() {
-  const c = document.getElementById('thumbs-content');
-  c.innerHTML = (thumbData.thumbnails || []).map(t => `
-    <div class="thumb-card">
-      <h3>Concept ${t.concept}: ${esc(t.title)}</h3>
-      <div class="thumb-concept">
-        <div class="thumb-concept-label">Layout</div>
-        <p>${esc(t.layout)}</p>
+// --- VOD Segments ---
+function renderVodSegments() {
+  const segs = analysisData.vod_segments || [];
+  const el = document.getElementById('body-vod');
+  if (!segs.length) { el.innerHTML = '<p class="empty-state">No VOD segments found.</p>'; return; }
+  el.innerHTML = segs.map((seg, i) => `
+    <div class="vod-card">
+      <h3><span style="color:var(--text-dim);font-size:14px">VOD ${i + 1}</span> ${esc(seg.name)}</h3>
+      <div style="color:var(--teal);font-family:var(--mono);font-size:12px;margin-bottom:14px">${esc(seg.start || '')} → ${esc(seg.end || '')}</div>
+      <div class="vod-option">
+        <div class="vod-option-label">Option A</div>
+        <div class="vod-option-text">${esc(seg.title_a || '')}</div>
       </div>
-      <div class="thumb-concept">
-        <div class="thumb-concept-label">Text Overlay</div>
-        <div class="thumb-text-overlay">${esc(t.textOverlay)}</div>
+      <div class="vod-option">
+        <div class="vod-option-label">Option B</div>
+        <div class="vod-option-text">${esc(seg.title_b || '')}</div>
       </div>
-      <div class="thumb-concept">
-        <div class="thumb-concept-label">Expression</div>
-        <p>${esc(t.expression)}</p>
+      <div class="vod-option">
+        <div class="vod-option-label">Option C</div>
+        <div class="vod-option-text">${esc(seg.title_c || '')}</div>
       </div>
-      <div class="thumb-concept">
-        <div class="thumb-concept-label">Background</div>
-        <p>${esc(t.background)}</p>
-      </div>
-      ${t.whyItWorks ? `<div class="thumb-why">${esc(t.whyItWorks)}</div>` : ''}
+      ${seg.description ? `<div class="vod-description" style="margin-top:12px">${esc(seg.description)}</div>` : ''}
     </div>
   `).join('');
 }
 
-// === Premiere Marker Export ===
-function exportPremiere() {
-  if (!clipData.length) return;
-
-  // Premiere Pro marker CSV format
-  // Premiere can import markers via a tab-separated file
-  let csv = 'Marker Name\tDescription\tIn\tOut\tDuration\tMarker Type\n';
-
-  clipData.forEach(clip => {
-    const name = clip.title.replace(/\t/g, ' ');
-    const desc = `${clip.hook} | ${clip.caption}`.replace(/\t/g, ' ').replace(/\n/g, ' ');
-    const inTC = toTimecode(clip.startTime);
-    const outTC = toTimecode(clip.endTime);
-    const dur = toTimecode(secToHMS(clip.durationSec));
-    csv += `${name}\t${desc}\t${inTC}\t${outTC}\t${dur}\tComment\n`;
-  });
-
-  // Also generate EDL format for broader compatibility
-  let edl = 'TITLE: Clip Markers\nFCM: NON-DROP FRAME\n\n';
-  clipData.forEach((clip, i) => {
-    const num = String(i + 1).padStart(3, '0');
-    const inTC = toTimecode(clip.startTime);
-    const outTC = toTimecode(clip.endTime);
-    edl += `${num}  001      V     C        ${inTC}:00 ${outTC}:00 ${inTC}:00 ${outTC}:00\n`;
-    edl += `* FROM CLIP NAME: ${clip.title}\n`;
-    edl += `* COMMENT: ${clip.hook}\n\n`;
-  });
-
-  // Download CSV (primary)
-  downloadFile(`clip-markers.csv`, csv, 'text/csv');
-
-  // Also download EDL
-  setTimeout(() => {
-    downloadFile(`clip-markers.edl`, edl, 'text/plain');
-  }, 500);
+// --- Thumbnail Quotes ---
+function renderThumbnailQuotes() {
+  const thumbs = analysisData.thumbnail_quotes || [];
+  const el = document.getElementById('thumbs-inner');
+  if (!thumbs.length) { el.innerHTML = '<p class="empty-state">No thumbnail quotes found.</p>'; return; }
+  el.innerHTML = thumbs.map((t, i) => `
+    <div class="thumb-card">
+      <h3>Quote ${i + 1}</h3>
+      <div class="thumb-concept">
+        <div class="thumb-concept-label">Quote</div>
+        <div class="thumb-text-overlay">"${esc(t.quote)}"</div>
+      </div>
+      <div class="thumb-concept">
+        <div class="thumb-concept-label">Timecode · Speaker</div>
+        <p style="font-family:var(--mono);font-size:12px;color:var(--teal)">${esc(t.timecode || '??:??:??')}</p>
+        <p>${esc(t.speaker || 'Unknown')}</p>
+      </div>
+      ${t.suggested_overlay ? `
+      <div class="thumb-concept">
+        <div class="thumb-concept-label">Suggested Overlay</div>
+        <p>${esc(t.suggested_overlay)}</p>
+      </div>` : ''}
+    </div>
+  `).join('');
 }
 
-function toTimecode(hms) {
-  // Normalize HH:MM:SS to HH:MM:SS (ensure proper format)
-  const parts = hms.replace(/;/g, ':').split(':');
+// --- Topics ---
+function renderTopics() {
+  const topics = analysisData.topics || [];
+  const el = document.getElementById('body-topics');
+  if (!topics.length) { el.innerHTML = '<p class="empty-state">No topics found.</p>'; return; }
+  el.innerHTML = `<div class="simple-list">` +
+    topics.map(t => `
+      <div class="simple-row">
+        <div class="simple-time">${esc(t.start || '??')} → ${esc(t.end || '??')}</div>
+        <div>
+          <div class="simple-name">${esc(t.name)}</div>
+          ${t.description ? `<div class="simple-desc">${esc(t.description)}</div>` : ''}
+        </div>
+      </div>`).join('') +
+    `</div>`;
+}
+
+// --- Ad Breaks ---
+function renderAdBreaks() {
+  const breaks = analysisData.ad_breaks || [];
+  const el = document.getElementById('body-ads');
+  if (!breaks.length) { el.innerHTML = '<p class="empty-state">No ad break suggestions.</p>'; return; }
+  el.innerHTML = `<div class="simple-list">` +
+    breaks.map(ab => `
+      <div class="simple-row">
+        <div class="simple-time">${esc(ab.timecode || '??:??:??')}</div>
+        <div class="simple-desc">${esc(ab.reason)}</div>
+      </div>`).join('') +
+    `</div>`;
+}
+
+// --- Reference Frames ---
+function renderReferenceFrames() {
+  const frames = analysisData.reference_frames || [];
+  const el = document.getElementById('body-frames');
+  if (!frames.length) { el.innerHTML = '<p class="empty-state">No reference frames found.</p>'; return; }
+  el.innerHTML = `<div class="simple-list">` +
+    frames.map(rf => `
+      <div class="simple-row">
+        <div class="simple-time">${esc(rf.timecode || '??:??:??')}</div>
+        <div class="simple-desc">${esc(rf.description)}</div>
+      </div>`).join('') +
+    `</div>`;
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
+// --- Premiere Markers CSV (color-coded, all types) ---
+function exportPremiere() {
+  if (!analysisData) return;
+  const meta = analysisData._meta || {};
+
+  let csv = 'Marker Name\tDescription\tIn\tOut\tDuration\tMarker Type\tColor\n';
+
+  // Viral clips → Red
+  (analysisData.viral_clips || []).forEach(clip => {
+    const name = `🔥 #${clip.rank} ${clip.title}`.replace(/\t/g, ' ');
+    const desc = `${clip.hook || ''} | ${clip.caption || ''}`.replace(/\t|\n/g, ' ');
+    const inTC = toTimecode(clip.startTime || '00:00:00');
+    const outTC = toTimecode(clip.endTime || '00:00:00');
+    const dur = clip.durationSec ? toTimecode(secToHMS(clip.durationSec)) : '';
+    csv += `${name}\t${desc}\t${inTC}\t${outTC}\t${dur}\tComment\tRed\n`;
+  });
+
+  // Long clips → Green
+  (analysisData.long_clips || []).forEach(lc => {
+    const name = `🎬 LONG #${lc.rank} ${lc.title}`.replace(/\t/g, ' ');
+    const desc = `~${lc.duration_min || '?'} min | ${lc.why || ''}`.replace(/\t|\n/g, ' ');
+    const inTC = toTimecode(lc.start || '00:00:00');
+    const outTC = toTimecode(lc.end || '00:00:00');
+    csv += `${name}\t${desc}\t${inTC}\t${outTC}\t\tComment\tGreen\n`;
+  });
+
+  // VOD segments → Cyan
+  (analysisData.vod_segments || []).forEach(seg => {
+    const name = `📺 VOD: ${seg.name}`.replace(/\t/g, ' ');
+    const desc = `${seg.title_a || ''} | ${seg.description || ''}`.replace(/\t|\n/g, ' ');
+    const inTC = toTimecode(seg.start || '00:00:00');
+    const outTC = toTimecode(seg.end || '00:00:00');
+    csv += `${name}\t${desc}\t${inTC}\t${outTC}\t\tComment\tCyan\n`;
+  });
+
+  // Topics → Blue
+  (analysisData.topics || []).forEach(t => {
+    const name = `📘 ${t.name}`.replace(/\t/g, ' ');
+    const desc = (t.description || '').replace(/\t|\n/g, ' ');
+    const inTC = toTimecode(t.start || '00:00:00');
+    const outTC = toTimecode(t.end || '00:00:00');
+    csv += `${name}\t${desc}\t${inTC}\t${outTC}\t\tComment\tBlue\n`;
+  });
+
+  // Ad breaks → Orange
+  (analysisData.ad_breaks || []).forEach(ab => {
+    const name = `📢 AD BREAK`;
+    const desc = (ab.reason || '').replace(/\t|\n/g, ' ');
+    const inTC = toTimecode(ab.timecode || '00:00:00');
+    csv += `${name}\t${desc}\t${inTC}\t\t\tComment\tOrange\n`;
+  });
+
+  // Thumbnail quotes → Purple
+  (analysisData.thumbnail_quotes || []).forEach(tq => {
+    const name = `🖼 "${tq.quote}"`.replace(/\t/g, ' ');
+    const desc = `Speaker: ${tq.speaker || ''} | ${tq.suggested_overlay || ''}`.replace(/\t|\n/g, ' ');
+    const inTC = toTimecode(tq.timecode || '00:00:00');
+    csv += `${name}\t${desc}\t${inTC}\t\t\tComment\tPurple\n`;
+  });
+
+  const ep = (meta.episode || 'episode').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  downloadFile(`${ep}-markers.csv`, csv, 'text/csv');
+  showToast('✅ Markers CSV downloaded!');
+}
+
+// --- Cut Guide (.txt) ---
+function downloadCutGuide() {
+  if (!analysisData) return;
+  const meta = analysisData._meta || {};
+  const show = (meta.show || 'Show').toUpperCase();
+  const ep = (meta.episode || 'Episode').toUpperCase();
+  const lines = [];
+
+  lines.push(`${show} — ${ep}`);
+  lines.push('='.repeat(60));
+  lines.push('');
+
+  // Episode Titles
+  lines.push('='.repeat(60));
+  lines.push('EPISODE TITLE OPTIONS');
+  lines.push('='.repeat(60));
+  (analysisData.episode_titles || []).forEach((t, i) => lines.push(`  ${i + 1}. ${t}`));
+  lines.push('');
+
+  // Long Clips
+  lines.push('='.repeat(60));
+  lines.push('LONG CLIPS — 8+ MIN (ranked by standalone value)');
+  lines.push('='.repeat(60));
+  (analysisData.long_clips || []).forEach(lc => {
+    lines.push(`\n${lc.rank}. 🎬 ${(lc.title || '').toUpperCase()} [${lc.start || '??'} - ${lc.end || '??'}] (~${lc.duration_min || '?'} min)`);
+    lines.push(`   "${lc.quote || ''}"`);
+    lines.push(`   Why: ${lc.why || ''}`);
+  });
+  lines.push('');
+
+  // VOD Segments
+  lines.push('='.repeat(60));
+  lines.push('VOD SEGMENTS (with timecodes + 3 title options each)');
+  lines.push('='.repeat(60));
+  (analysisData.vod_segments || []).forEach((seg, i) => {
+    lines.push(`\nVOD ${i + 1}: ${(seg.name || 'Segment').toUpperCase()} [${seg.start || '??'} - ${seg.end || '??'}]`);
+    lines.push(`  Title A: ${seg.title_a || ''}`);
+    lines.push(`  Title B: ${seg.title_b || ''}`);
+    lines.push(`  Title C: ${seg.title_c || ''}`);
+    if (seg.description) lines.push(`  Description: ${seg.description}`);
+  });
+  lines.push('');
+
+  // Viral Clips
+  lines.push('='.repeat(60));
+  lines.push('VIRAL SOCIAL CLIPS (ranked by potential)');
+  lines.push('='.repeat(60));
+  (analysisData.viral_clips || []).forEach(clip => {
+    const tags = (clip.tags || []).join(', ');
+    lines.push(`\n${clip.rank}. ${(clip.title || '').toUpperCase()} [${clip.startTime || '??'} - ${clip.endTime || '??'}] (${clip.durationSec || '?'}s)`);
+    lines.push(`   Hook: ${clip.hook || ''}`);
+    lines.push(`   "${clip.quote || ''}"`);
+    lines.push(`   Caption: ${clip.caption || ''}`);
+    lines.push(`   Tags: ${tags}`);
+    lines.push(`   Why: ${clip.whyItWorks || ''}`);
+    if (clip.hashtags) lines.push(`   ${clip.hashtags}`);
+  });
+  lines.push('');
+
+  // Topics
+  lines.push('='.repeat(60));
+  lines.push('TOPICS / SEGMENTS');
+  lines.push('='.repeat(60));
+  (analysisData.topics || []).forEach(t => {
+    lines.push(`\n  [${t.start || '??'} - ${t.end || '??'}] ${t.name}`);
+    if (t.description) lines.push(`    ${t.description}`);
+  });
+  lines.push('');
+
+  // Ad Breaks
+  lines.push('='.repeat(60));
+  lines.push('AD BREAK SUGGESTIONS');
+  lines.push('='.repeat(60));
+  (analysisData.ad_breaks || []).forEach(ab => {
+    lines.push(`  [${ab.timecode || '??'}] ${ab.reason || ''}`);
+  });
+  lines.push('');
+
+  // Thumbnail Quotes
+  lines.push('='.repeat(60));
+  lines.push('THUMBNAIL QUOTES');
+  lines.push('='.repeat(60));
+  (analysisData.thumbnail_quotes || []).forEach(tq => {
+    lines.push(`\n  [${tq.timecode || '??'}] "${tq.quote || ''}"`);
+    lines.push(`    Speaker: ${tq.speaker || '?'}`);
+    if (tq.suggested_overlay) lines.push(`    Overlay: ${tq.suggested_overlay}`);
+  });
+  lines.push('');
+
+  // Reference Frames
+  lines.push('='.repeat(60));
+  lines.push('REFERENCE FRAMES (for thumbnail designers)');
+  lines.push('='.repeat(60));
+  (analysisData.reference_frames || []).forEach(rf => {
+    lines.push(`  [${rf.timecode || '??'}] ${rf.description || ''}`);
+  });
+  lines.push('');
+
+  const epSlug = (meta.episode || 'episode').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  downloadFile(`${epSlug}-cut-guide.txt`, lines.join('\n'), 'text/plain');
+  showToast('✅ Cut Guide downloaded!');
+}
+
+// --- SRT Captions ---
+function downloadSRT() {
+  if (!analysisData) return;
+  const meta = analysisData._meta || {};
+  const transcript = meta.transcript || '';
+
+  // Try to extract SRT-style entries from the transcript if it has timestamps
+  const lines = transcript.split('\n');
+  const srtEntries = [];
+  let idx = 1;
+
+  // Look for lines with timestamps like [00:05:32] or (5:32) at start
+  const tsRegex = /^\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*(.*)/;
+  let prev = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(tsRegex);
+    if (m) {
+      if (prev) {
+        // Close previous entry
+        srtEntries.push({ idx: idx++, start: prev.time, end: m[1], text: prev.text });
+      }
+      prev = { time: m[1], text: m[2].trim() };
+    } else if (prev && lines[i].trim()) {
+      prev.text += ' ' + lines[i].trim();
+    }
+  }
+  if (prev) {
+    // Last entry — add 5 seconds
+    const endTime = addSeconds(prev.time, 5);
+    srtEntries.push({ idx: idx++, start: prev.time, end: endTime, text: prev.text });
+  }
+
+  // If no timestamps found in transcript, fall back to viral clips quotes as SRT
+  let srt = '';
+  if (srtEntries.length > 0) {
+    srt = srtEntries.map(e => `${e.idx}\n${toSRTTimecode(e.start)} --> ${toSRTTimecode(e.end)}\n${e.text}\n`).join('\n');
+  } else {
+    // Fallback: use viral clip timecodes + hooks as SRT
+    const clips = analysisData.viral_clips || [];
+    if (!clips.length) {
+      alert('No timestamp data available to generate SRT.');
+      return;
+    }
+    srt = clips.map((clip, i) => {
+      const startSRT = toSRTTimecode(clip.startTime || '00:00:00');
+      const endSRT = toSRTTimecode(clip.endTime || '00:00:05');
+      const text = clip.title || clip.hook || '';
+      return `${i + 1}\n${startSRT} --> ${endSRT}\n${text}\n`;
+    }).join('\n');
+  }
+
+  const epSlug = (meta.episode || 'episode').replace(/[^a-z0-9]/gi, '-').toLowerCase();
+  downloadFile(`${epSlug}-captions.srt`, srt, 'text/plain');
+  showToast('✅ SRT Captions downloaded!');
+}
+
+function toSRTTimecode(hms) {
+  if (!hms) return '00:00:00,000';
+  const parts = hms.replace(/[;,]/g, ':').split(':');
   while (parts.length < 3) parts.unshift('00');
-  return parts.map(p => p.padStart(2, '0')).join(':');
+  const [h, m, s] = parts;
+  return `${h.padStart(2,'0')}:${m.padStart(2,'0')}:${s.padStart(2,'0')},000`;
+}
+
+function addSeconds(hms, sec) {
+  const parts = hms.split(':').map(Number);
+  let total = 0;
+  if (parts.length === 3) total = parts[0]*3600 + parts[1]*60 + parts[2];
+  else if (parts.length === 2) total = parts[0]*60 + parts[1];
+  total += sec;
+  return secToHMS(total);
+}
+
+// ============================================================
+// UTILITY
+// ============================================================
+
+function toTimecode(hms) {
+  if (!hms) return '00:00:00';
+  const parts = hms.replace(/[;,]/g, ':').split(':');
+  while (parts.length < 3) parts.unshift('00');
+  return parts.map(p => String(p).padStart(2, '0')).join(':');
 }
 
 function secToHMS(sec) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
+  const s = Math.floor(sec % 60);
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
@@ -625,50 +972,55 @@ function downloadFile(filename, content, type) {
   URL.revokeObjectURL(url);
 }
 
-// === Copy ===
-function copyClips() {
-  const text = clipData.map(c =>
-    `#${c.rank} — ${c.title}\nTime: ${c.startTime} → ${c.endTime} (${c.durationSec}s)\nHook: ${c.hook}\nQuote: ${c.quote}\nCaption: ${c.caption}\nTags: ${(c.tags||[]).join(', ')}\n${c.hashtags || ''}\n`
-  ).join('\n---\n\n');
-  navigator.clipboard.writeText(text).then(() => alert('Clips copied!'));
-}
-
-function copyVod() {
-  let text = 'TITLE OPTIONS\n';
-  (vodData.titles || []).forEach(t => { text += `${t.option} (${t.style}): ${t.text}\n`; });
-  text += '\nDESCRIPTION\n';
-  (vodData.descriptions || []).forEach(d => { text += d.text + '\n'; });
-  text += '\nCHAPTERS\n';
-  (vodData.chapters || []).forEach(ch => { text += `${ch.time} ${ch.title}\n`; });
-  text += '\nTAGS\n' + (vodData.tags || []).join(', ');
-  navigator.clipboard.writeText(text).then(() => alert('VOD suggestions copied!'));
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('Copied!'));
 }
 
 function copyThumbs() {
-  const text = (thumbData.thumbnails || []).map(t =>
-    `CONCEPT ${t.concept}: ${t.title}\nLayout: ${t.layout}\nText: ${t.textOverlay}\nExpression: ${t.expression}\nBackground: ${t.background}\nWhy: ${t.whyItWorks}\n`
+  const thumbs = analysisData?.thumbnail_quotes || [];
+  const text = thumbs.map((t, i) =>
+    `Quote ${i + 1}: "${t.quote}"\nTimecode: ${t.timecode}\nSpeaker: ${t.speaker}\nOverlay: ${t.suggested_overlay}\n`
   ).join('\n---\n\n');
-  navigator.clipboard.writeText(text).then(() => alert('Thumbnail concepts copied!'));
+  navigator.clipboard.writeText(text).then(() => showToast('Thumbnail quotes copied!'));
 }
 
 function printOutput() { window.print(); }
 
-// === Send to Design ===
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.style.display = '';
+  setTimeout(() => { toast.style.display = 'none'; }, 4000);
+}
+
+function esc(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// ============================================================
+// SEND TO DESIGN
+// ============================================================
+
 function openSendToDesign() {
-  if (!thumbData || !thumbData.thumbnails?.length) { alert('Generate thumbnails first.'); return; }
-  // Set default deadline to 48h from now
+  const thumbs = analysisData?.thumbnail_quotes || [];
+  if (!thumbs.length) { alert('Generate results with thumbnail quotes first.'); return; }
+
   const deadline = new Date(Date.now() + 48 * 60 * 60 * 1000);
   document.getElementById('design-deadline').value = deadline.toISOString().slice(0, 16);
-  // Restore saved producer name
   document.getElementById('producer-name').value = localStorage.getItem('producer_name') || '';
-  // Preview concepts
+
   const preview = document.getElementById('design-concepts-preview');
-  preview.innerHTML = thumbData.thumbnails.map(t => `
+  preview.innerHTML = thumbs.map((t, i) => `
     <div style="background:var(--bg);padding:10px;border-radius:var(--radius);margin-bottom:8px">
-      <strong style="color:var(--accent);font-size:12px">Concept ${t.concept}</strong>: ${esc(t.title)}
-      <div style="font-size:18px;font-weight:800;color:#f59e0b;margin-top:4px">${esc(t.textOverlay)}</div>
+      <strong style="color:var(--amber);font-size:12px">Quote ${i + 1}</strong>: ${esc(t.quote)}
+      <div style="font-size:13px;color:var(--teal);margin-top:4px;font-family:var(--mono)">${esc(t.timecode || '')} — ${esc(t.speaker || '')}</div>
     </div>
   `).join('');
+
   document.getElementById('design-modal').style.display = '';
 }
 
@@ -680,10 +1032,16 @@ async function sendToDesign() {
   const producerName = document.getElementById('producer-name').value.trim();
   const deadline = document.getElementById('design-deadline').value;
   const notes = document.getElementById('design-notes').value.trim();
-  const form = getFormData();
+  const meta = analysisData?._meta || {};
 
   if (!producerName) { alert('Enter your name.'); return; }
   if (!deadline) { alert('Set a deadline.'); return; }
+
+  // Send to Design only works when running locally (not on GitHub Pages)
+  if (location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    alert('Send to Design requires the local server. Run the app locally to use this feature.');
+    return;
+  }
 
   localStorage.setItem('producer_name', producerName);
 
@@ -693,31 +1051,17 @@ async function sendToDesign() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         createdBy: producerName,
-        show: form.showName,
-        episode: form.episode,
+        show: meta.show || '',
+        episode: meta.episode || '',
         deadline: new Date(deadline).toISOString(),
-        concepts: thumbData.thumbnails,
-        notes: notes
+        concepts: analysisData.thumbnail_quotes || [],
+        notes
       })
     });
-
     if (!res.ok) throw new Error('Failed to create request');
-
     closeDesignModal();
     showToast('✅ Thumbnail request sent to Design!');
   } catch (err) {
     alert(`Failed to send: ${err.message}`);
   }
-}
-
-function showToast(msg) {
-  const toast = document.getElementById('toast');
-  toast.textContent = msg;
-  toast.style.display = '';
-  setTimeout(() => { toast.style.display = 'none'; }, 4000);
-}
-
-function esc(text) {
-  if (!text) return '';
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
