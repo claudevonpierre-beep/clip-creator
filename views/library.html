@@ -102,7 +102,7 @@
         <% if (ep.guest) { %><div class="ep-guest">Guest: <%= ep.guest %></div><% } %>
         <div class="ep-date"><%= new Date(ep.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></div>
         <div class="card-actions">
-          <a href="/episode/<%= ep.id %>" class="btn-sm btn-gold">View</a>
+          <a href="/?episode=<%= ep.id %>" class="btn-sm btn-gold">View</a>
           <button class="btn-sm btn-ghost" onclick="deleteEpisode(<%= ep.id %>, this)">Delete</button>
         </div>
       </div>

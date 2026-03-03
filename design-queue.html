@@ -204,15 +204,16 @@
             </div>
           </div>
           <div class="request-detail" id="detail-${r.id}">
-            ${r.concepts.map((c, i) => `
-              <div class="concept-block">
-                <div class="concept-label">Concept ${c.concept || (i+1)}: ${esc(c.title || '')}</div>
-                <p>${esc(c.layout || '')}</p>
-                <div class="concept-text-overlay">${esc(c.textOverlay || '')}</div>
-                <p style="margin-top:6px;font-size:13px;color:var(--text-dim)">${esc(c.expression || '')}</p>
-                <p style="font-size:13px;color:var(--text-dim)">${esc(c.background || '')}</p>
-              </div>
-            `).join('')}
+            ${r.concepts?.length ? `
+              <div style="font-size:11px;color:var(--accent);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Thumbnail Quotes (${r.concepts.length})</div>
+              ${r.concepts.map((c, i) => `
+                <div class="concept-block">
+                  <div class="concept-label">Quote ${i + 1}${c.timecode ? ' &middot; ' + esc(c.timecode) : ''}${c.speaker ? ' &middot; ' + esc(c.speaker) : ''}</div>
+                  <div class="concept-text-overlay">"${esc(c.quote || c.text || c.textOverlay || '')}"</div>
+                  ${c.suggested_overlay ? `<div style="font-size:12px;color:var(--text-dim);margin-top:4px">Overlay: ${esc(c.suggested_overlay)}</div>` : ''}
+                </div>
+              `).join('')}
+            ` : '<p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">No concepts attached.</p>'}
             ${r.notes ? `<div class="concept-block"><div class="concept-label">Producer Notes</div><p>${esc(r.notes)}</p></div>` : ''}
             ${r.designerNotes ? `<div class="concept-block"><div class="concept-label">Designer Notes</div><p>${esc(r.designerNotes)}</p></div>` : ''}
             ${r.uploadPath ? `<div class="uploaded-thumb"><img src="${r.uploadPath}" alt="Uploaded thumbnail"></div>` : ''}

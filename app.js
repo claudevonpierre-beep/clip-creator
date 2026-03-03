@@ -116,21 +116,6 @@ const SHOW_PROFILES = {
     ],
     clipDna: "Amon-Ra's insider perspective as an active star player. Reactions to his own games and performances. Behind-the-scenes stories from the locker room, practice, and game day. Player perspective on media narratives.",
   },
-  blocks: {
-    name: "Blocks (Neal Brennan)",
-    hosts: ["Neal Brennan"],
-    whatWorks: [
-      "Neal's sharp, self-aware comedy and cultural commentary",
-      "Mental health, therapy, and vulnerability moments",
-      "Hot takes on pop culture and media",
-      "Comedian guests getting real and unguarded",
-    ],
-    whatFails: [
-      "Long setup without payoff",
-      "Generic celebrity interview format",
-    ],
-    clipDna: "Neal being brutally honest and funny. Vulnerable moments that hit emotionally. Sharp observations on comedy, culture, or mental health. Guest drops something unexpected and real.",
-  },
   other: {
     name: "Other",
     hosts: [],
@@ -536,6 +521,42 @@ function renderResults() {
   renderAdBreaks();
   renderReferenceFrames();
 }
+
+// === Load episode from library via ?episode=ID ===
+(async function loadEpisodeFromUrl() {
+  const id = new URLSearchParams(location.search).get('episode');
+  if (!id) return;
+  try {
+    const res = await fetch(`/api/episodes/${id}`);
+    if (!res.ok) return;
+    const ep = await res.json();
+    analysisData = JSON.parse(ep.analysis_json || '{}');
+    // Pre-fill episode/show fields if present
+    const showEl = document.getElementById('show-select');
+    const epEl   = document.getElementById('episode-input');
+    if (showEl && ep.show) showEl.value = ep.show;
+    if (epEl   && ep.episode_name) epEl.value = ep.episode_name;
+    // Show results directly, skip form
+    hideAllSections();
+    renderResults();
+    document.getElementById('results-output').style.display = '';
+    // Update page title
+    const titleEl = document.getElementById('page-title');
+    if (titleEl && ep.episode_name) titleEl.textContent = ep.episode_name;
+    // Add a back-to-library button in the toolbar
+    const toolbar = document.querySelector('.output-toolbar');
+    if (toolbar) {
+      const backBtn = document.createElement('a');
+      backBtn.href = '/library';
+      backBtn.className = 'btn btn-ghost';
+      backBtn.textContent = '← Library';
+      backBtn.style.textDecoration = 'none';
+      toolbar.prepend(backBtn);
+    }
+  } catch (e) {
+    console.error('Failed to load episode from library:', e);
+  }
+})();
 
 // --- Episode Titles ---
 function renderEpisodeTitles() {
@@ -1015,9 +1036,12 @@ function openSendToDesign() {
 
   const preview = document.getElementById('design-concepts-preview');
   preview.innerHTML = thumbs.map((t, i) => `
-    <div style="background:var(--bg);padding:10px;border-radius:var(--radius);margin-bottom:8px">
-      <strong style="color:var(--amber);font-size:12px">Quote ${i + 1}</strong>: ${esc(t.quote)}
-      <div style="font-size:13px;color:var(--teal);margin-top:4px;font-family:var(--mono)">${esc(t.timecode || '')} — ${esc(t.speaker || '')}</div>
+    <div style="background:var(--bg);padding:12px;border-radius:var(--radius);margin-bottom:10px">
+      <div style="font-size:11px;color:var(--accent);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">
+        Quote ${i + 1} &nbsp;<span style="color:var(--text-dim);font-weight:400">${esc(t.timecode || '')}${t.speaker ? ' · ' + esc(t.speaker) : ''}</span>
+      </div>
+      <textarea data-quote-idx="${i}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 10px;font-size:14px;font-family:var(--font);resize:vertical;outline:none" rows="2">${esc(t.quote)}</textarea>
+      ${t.suggested_overlay ? `<div style="font-size:12px;color:var(--text-dim);margin-top:4px">Suggested overlay: ${esc(t.suggested_overlay)}</div>` : ''}
     </div>
   `).join('');
 
@@ -1045,6 +1069,12 @@ async function sendToDesign() {
 
   localStorage.setItem('producer_name', producerName);
 
+  // Collect edited quotes from the modal textareas
+  const editedConcepts = (analysisData.thumbnail_quotes || []).map((t, i) => {
+    const ta = document.querySelector(`[data-quote-idx="${i}"]`);
+    return { ...t, quote: ta ? ta.value.trim() : t.quote };
+  });
+
   try {
     const res = await fetch('/api/requests', {
       method: 'POST',
@@ -1054,7 +1084,7 @@ async function sendToDesign() {
         show: meta.show || '',
         episode: meta.episode || '',
         deadline: new Date(deadline).toISOString(),
-        concepts: analysisData.thumbnail_quotes || [],
+        concepts: editedConcepts,
         notes
       })
     });
