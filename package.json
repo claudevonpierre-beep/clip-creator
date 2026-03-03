@@ -1,0 +1,20 @@
+{
+  "name": "clip-creator",
+  "version": "2.0.0",
+  "type": "module",
+  "description": "33rd Team Clip Creator — AI-powered clip analysis tool",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
+    "multer": "^1.4.5-lts.1",
+    "google-auth-library": "^9.6.3",
+    "docx": "^8.5.0",
+    "pdfkit": "^0.15.0",
+    "node-fetch": "^3.3.2",
+    "uuid": "^9.0.0"
+  }
+}

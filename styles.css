@@ -736,3 +736,550 @@ body::after {
   .clip-title { font-size: 18px; }
   .clip-rank { font-size: 22px; }
 }
+
+/* ============================================================
+   LOGIN SCREEN
+   ============================================================ */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.4s ease;
+}
+
+/* Subtle scanline overlay */
+.login-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255,255,255,0.015) 2px,
+    rgba(255,255,255,0.015) 4px
+  );
+  pointer-events: none;
+}
+
+.login-box {
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.login-logo {
+  text-align: center;
+}
+
+.login-logo h1 {
+  font-family: var(--display);
+  font-size: 64px;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+  line-height: 0.88;
+  text-transform: uppercase;
+  color: var(--text);
+  text-shadow: 0 0 60px rgba(255,107,53,0.15);
+}
+
+.login-subtitle {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  margin-top: 10px;
+  display: block;
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-form label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  margin-bottom: -6px;
+}
+
+.login-form input[type="password"] {
+  width: 100%;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 16px;
+  font-family: var(--body);
+  letter-spacing: 0.1em;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.login-form input[type="password"]:focus {
+  outline: none;
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-glow);
+}
+
+.login-form .btn {
+  width: 100%;
+  justify-content: center;
+  margin-top: 4px;
+}
+
+.login-error {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--red);
+  text-align: center;
+  letter-spacing: 0.06em;
+  margin: 0;
+  animation: fadeIn 0.2s ease;
+}
+
+/* ============================================================
+   TRANSCRIPT MODE TOGGLE + FILE DROPZONE
+   ============================================================ */
+.transcript-toggle {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 3px;
+  width: fit-content;
+}
+
+.transcript-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 6px 16px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.transcript-toggle-btn.active {
+  background: var(--amber);
+  color: var(--bg);
+}
+
+.transcript-toggle-btn:not(.active):hover {
+  color: var(--text);
+}
+
+.file-dropzone {
+  width: 100%;
+  min-height: 200px;
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px;
+  transition: all 0.2s;
+  cursor: default;
+  text-align: center;
+}
+
+.file-dropzone.drag-over {
+  border-color: var(--amber);
+  background: var(--amber-subtle);
+  box-shadow: 0 0 0 3px var(--amber-glow);
+}
+
+.dropzone-icon { font-size: 36px; opacity: 0.6; }
+
+.dropzone-label {
+  font-size: 14px;
+  color: var(--text-dim);
+  font-family: var(--body);
+}
+
+.dropzone-or {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--border);
+  letter-spacing: 0.12em;
+}
+
+.dropzone-browse {
+  cursor: pointer;
+}
+
+.dropzone-filename {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--teal);
+  margin-top: 4px;
+  animation: fadeIn 0.3s ease;
+}
+
+/* ============================================================
+   LOADING SUB-TEXT
+   ============================================================ */
+.loading-sub {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--border);
+  letter-spacing: 0.06em;
+  margin-top: 8px !important;
+}
+
+/* ============================================================
+   RESULTS SECTIONS — COLLAPSIBLE
+   ============================================================ */
+.res-section {
+  margin-bottom: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--surface);
+  animation: cardIn 0.4s ease both;
+}
+
+.res-section:nth-child(1) { animation-delay: 0s; }
+.res-section:nth-child(2) { animation-delay: 0.05s; }
+.res-section:nth-child(3) { animation-delay: 0.1s; }
+.res-section:nth-child(4) { animation-delay: 0.15s; }
+.res-section:nth-child(5) { animation-delay: 0.2s; }
+.res-section:nth-child(6) { animation-delay: 0.25s; }
+.res-section:nth-child(7) { animation-delay: 0.3s; }
+.res-section:nth-child(8) { animation-delay: 0.35s; }
+
+.res-section.open {
+  border-color: var(--border);
+}
+
+.res-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s;
+  background: var(--surface2);
+}
+
+.res-section-header:hover {
+  background: var(--surface3);
+}
+
+.res-section-title {
+  font-family: var(--display);
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-warm);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.res-icon {
+  font-size: 16px;
+}
+
+.res-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--amber);
+  background: var(--amber-subtle);
+  border: 1px solid rgba(255,107,53,0.2);
+  padding: 2px 8px;
+  border-radius: 2px;
+}
+
+.res-badge.muted {
+  color: var(--text-dim);
+  background: transparent;
+  border-color: var(--border);
+}
+
+.chevron {
+  font-size: 10px;
+  color: var(--text-dim);
+  transition: transform 0.2s;
+  font-family: var(--mono);
+}
+
+.chevron.open {
+  color: var(--amber);
+}
+
+.res-section-body {
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  animation: fadeIn 0.3s ease;
+}
+
+/* ============================================================
+   EPISODE TITLES
+   ============================================================ */
+.titles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  border-left: 2px solid var(--border);
+  transition: border-color 0.2s;
+}
+
+.title-row:hover {
+  border-left-color: var(--amber);
+}
+
+.title-num {
+  font-family: var(--display);
+  font-size: 22px;
+  color: var(--amber);
+  min-width: 28px;
+  line-height: 1;
+}
+
+.title-text {
+  flex: 1;
+  font-family: var(--display);
+  font-size: 17px;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+}
+
+.btn-copy-small {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-copy-small:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+
+/* ============================================================
+   LONG CLIP CARDS
+   ============================================================ */
+.long-clip-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px 22px 22px 26px;
+  margin-bottom: 14px;
+  position: relative;
+  transition: all 0.25s;
+  animation: cardIn 0.4s ease both;
+}
+
+.long-clip-card::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: #22c55e; /* green */
+  border-radius: 3px 0 0 3px;
+}
+
+.long-clip-card:hover {
+  border-color: #22c55e;
+  box-shadow: 0 6px 30px rgba(34,197,94,0.08);
+  transform: translateY(-1px);
+}
+
+.long-clip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.long-clip-rank {
+  font-family: var(--display);
+  font-size: 26px;
+  color: #22c55e;
+  line-height: 1;
+}
+
+.long-clip-time {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--teal);
+  background: rgba(45,212,191,0.08);
+  border: 1px solid rgba(45,212,191,0.15);
+  padding: 5px 12px;
+  border-radius: var(--radius);
+  letter-spacing: 0.08em;
+}
+
+.long-clip-title {
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  line-height: 1.2;
+}
+
+.long-clip-quote {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--surface);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  line-height: 1.8;
+  border-left: 2px solid var(--border-warm);
+}
+
+.long-clip-why {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+  padding-left: 12px;
+  border-left: 2px solid rgba(34,197,94,0.3);
+}
+
+/* ============================================================
+   SIMPLE ROWS (Topics, Ad Breaks, Reference Frames)
+   ============================================================ */
+.simple-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.simple-row {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  background: var(--bg);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border-left: 2px solid var(--border);
+  transition: border-color 0.2s;
+}
+
+.simple-row:hover {
+  border-left-color: var(--amber);
+}
+
+.simple-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--teal);
+  white-space: nowrap;
+  padding-top: 2px;
+  min-width: 70px;
+}
+
+.simple-name {
+  font-family: var(--body);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.simple-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   EMPTY STATES
+   ============================================================ */
+.empty-state {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--border);
+  text-align: center;
+  padding: 24px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ============================================================
+   THUMB ACTIONS BAR
+   ============================================================ */
+.thumb-actions {
+  display: flex;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* ============================================================
+   PRINT — UPDATED
+   ============================================================ */
+@media print {
+  .login-screen { display: none !important; }
+  .res-section-body { display: block !important; }
+  .long-clip-card { background: #fff; color: #000; border: 1px solid #ddd; break-inside: avoid; }
+  .long-clip-card::before { background: #333; }
+  .simple-row { background: #f7f7f7; }
+  .title-row { background: #f7f7f7; }
+}
+
+/* ============================================================
+   MOBILE ADDENDUM
+   ============================================================ */
+@media (max-width: 768px) {
+  .login-logo h1 { font-size: 48px; }
+  .login-box { width: 90%; }
+  .res-section-title { font-size: 14px; }
+  .res-section-header { padding: 14px 16px; }
+  .res-section-body { padding: 14px; }
+  .long-clip-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .title-row { flex-wrap: wrap; }
+  .simple-row { flex-direction: column; gap: 4px; }
+}

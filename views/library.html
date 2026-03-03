@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library — Clip Creator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0a; color: #e4e4e7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+    nav {
+      background: #111;
+      border-bottom: 1px solid #222;
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .nav-logo { font-size: 16px; font-weight: 800; color: #c5a44e; letter-spacing: -0.5px; text-decoration: none; }
+    .nav-links { display: flex; gap: 16px; flex: 1; }
+    .nav-links a { color: #8b8fa3; text-decoration: none; font-size: 14px; }
+    .nav-links a.active { color: #e4e4e7; }
+    .nav-links a:hover { color: #e4e4e7; }
+    .nav-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+    .nav-user { font-size: 13px; color: #8b8fa3; }
+    .nav-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
+    .btn-sm {
+      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: none; text-decoration: none; display: inline-flex; align-items: center;
+    }
+    .btn-ghost { background: transparent; color: #8b8fa3; border: 1px solid #333; }
+    .btn-gold { background: #c5a44e; color: #0a0a0a; }
+    .main { max-width: 1200px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+    .subtitle { color: #8b8fa3; font-size: 14px; margin-bottom: 32px; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
+    .filter-btn {
+      padding: 6px 14px; border-radius: 20px; border: 1px solid #2a2a2a;
+      background: transparent; color: #8b8fa3; font-size: 13px; cursor: pointer;
+    }
+    .filter-btn.active { background: #c5a44e22; border-color: #c5a44e; color: #c5a44e; }
+    .episodes-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .episode-card {
+      background: #141414;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 20px;
+      transition: border-color 0.15s;
+    }
+    .episode-card:hover { border-color: #333; }
+    .show-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 12px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+      background: #c5a44e22; color: #c5a44e; margin-bottom: 10px;
+    }
+    .ep-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; }
+    .ep-guest { color: #8b8fa3; font-size: 13px; margin-bottom: 12px; }
+    .ep-date { color: #555; font-size: 12px; margin-bottom: 16px; }
+    .card-actions { display: flex; gap: 8px; }
+    .empty { text-align: center; padding: 80px 20px; color: #555; }
+    .empty h2 { font-size: 20px; margin-bottom: 8px; color: #8b8fa3; }
+    .empty p { font-size: 14px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="/" class="nav-logo">CLIP CREATOR</a>
+    <div class="nav-links">
+      <a href="/">Analyze</a>
+      <a href="/library" class="active">Library</a>
+      <% if (isAdmin) { %><a href="/admin">Admin</a><% } %>
+    </div>
+    <div class="nav-right">
+      <% if (user && user.avatar_url) { %>
+        <img src="<%= user.avatar_url %>" class="nav-avatar" alt="<%= user.name %>">
+      <% } %>
+      <span class="nav-user"><%= user ? user.name : 'Producer' %></span>
+      <form method="POST" action="/auth/logout" style="margin:0">
+        <button class="btn-sm btn-ghost">Sign out</button>
+      </form>
+    </div>
+  </nav>
+
+  <div class="main">
+    <h1>Episode Library</h1>
+    <p class="subtitle"><%= episodes.length %> saved episode<%= episodes.length !== 1 ? 's' : '' %></p>
+
+    <% if (episodes.length > 0) { %>
+    <div class="filters" id="filters">
+      <button class="filter-btn active" data-show="all">All</button>
+      <% const shows = [...new Set(episodes.map(e => e.show))].filter(Boolean); %>
+      <% shows.forEach(show => { %>
+        <button class="filter-btn" data-show="<%= show %>"><%= show %></button>
+      <% }) %>
+    </div>
+
+    <div class="episodes-grid" id="grid">
+      <% episodes.forEach(ep => { %>
+      <div class="episode-card" data-show="<%= ep.show %>">
+        <div class="show-badge"><%= ep.show || 'Unknown Show' %></div>
+        <div class="ep-name"><%= ep.episode_name || 'Untitled Episode' %></div>
+        <% if (ep.guest) { %><div class="ep-guest">Guest: <%= ep.guest %></div><% } %>
+        <div class="ep-date"><%= new Date(ep.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></div>
+        <div class="card-actions">
+          <a href="/episode/<%= ep.id %>" class="btn-sm btn-gold">View</a>
+          <button class="btn-sm btn-ghost" onclick="deleteEpisode(<%= ep.id %>, this)">Delete</button>
+        </div>
+      </div>
+      <% }) %>
+    </div>
+    <% } else { %>
+    <div class="empty">
+      <h2>No episodes saved yet</h2>
+      <p>Analyze an episode and click "Save to Library" to store it here.</p>
+      <a href="/" class="btn-sm btn-gold">Go Analyze →</a>
+    </div>
+    <% } %>
+  </div>
+
+  <script>
+    // Filter by show
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const show = btn.dataset.show;
+        document.querySelectorAll('.episode-card').forEach(card => {
+          card.style.display = (show === 'all' || card.dataset.show === show) ? '' : 'none';
+        });
+      });
+    });
+
+    async function deleteEpisode(id, btn) {
+      if (!confirm('Delete this episode? This cannot be undone.')) return;
+      const res = await fetch(`/api/episodes/${id}`, { method: 'DELETE' });
+      if (res.ok) btn.closest('.episode-card').remove();
+      else alert('Delete failed');
+    }
+  </script>
+</body>
+</html>

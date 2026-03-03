@@ -7,12 +7,30 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Settings Modal -->
+
+  <!-- ===== LOGIN SCREEN ===== -->
+  <div id="login-screen" class="login-screen">
+    <div class="login-box">
+      <div class="login-logo">
+        <h1>CLIP<br>CREATOR</h1>
+        <span class="login-subtitle">The 33rd Team</span>
+      </div>
+      <div class="login-form">
+        <label for="login-password">Access Code</label>
+        <input type="password" id="login-password" placeholder="Enter access code…" autocomplete="current-password"
+               onkeydown="if(event.key==='Enter') attemptLogin()">
+        <p id="login-error" class="login-error" style="display:none">Incorrect access code. Try again.</p>
+        <button class="btn btn-primary btn-lg" onclick="attemptLogin()">Unlock →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SETTINGS MODAL ===== -->
   <div id="settings-modal" class="modal-overlay" style="display:none">
     <div class="modal">
       <h2>Settings</h2>
       <label for="api-key-input">Anthropic API Key</label>
-      <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
+      <input type="password" id="api-key-input" placeholder="sk-ant-…" autocomplete="off">
       <p class="hint">Stored locally in your browser. Never sent anywhere except Anthropic's API.</p>
       <div class="modal-actions">
         <button class="btn btn-secondary" onclick="closeSettings()">Cancel</button>
@@ -21,7 +39,7 @@
     </div>
   </div>
 
-  <!-- Sidebar -->
+  <!-- ===== SIDEBAR ===== -->
   <aside id="sidebar">
     <div class="sidebar-header">
       <h1>Clip<br>Creator</h1>
@@ -32,9 +50,13 @@
         <span class="mode-icon">✂️</span>
         <span class="mode-name">Vertical Clips</span>
       </div>
-      <div class="mode-item" data-mode="vod" onclick="selectMode('vod')">
+      <div class="mode-item" data-mode="long" onclick="selectMode('long')">
         <span class="mode-icon">🎬</span>
-        <span class="mode-name">VOD Suggestions</span>
+        <span class="mode-name">Long Clips</span>
+      </div>
+      <div class="mode-item" data-mode="vod" onclick="selectMode('vod')">
+        <span class="mode-icon">📺</span>
+        <span class="mode-name">VOD Segments</span>
       </div>
       <div class="mode-item" data-mode="thumbs" onclick="selectMode('thumbs')">
         <span class="mode-icon">🖼</span>
@@ -50,11 +72,15 @@
     </div>
   </aside>
 
-  <!-- Main -->
+  <!-- ===== MAIN ===== -->
   <main id="main">
     <header id="top-bar">
       <button id="menu-toggle" onclick="toggleSidebar()">☰</button>
       <h2 id="page-title">Vertical Clips</h2>
+      <div id="user-bar" style="margin-left:auto;display:flex;align-items:center;gap:12px">
+        <a href="/library" style="color:#c5a44e;font-size:13px;text-decoration:none;font-weight:600">📚 Library</a>
+        <span id="user-name" style="font-size:12px;color:#8b8fa3"></span>
+      </div>
     </header>
 
     <!-- Input Form -->
@@ -78,16 +104,43 @@
           <label for="episode-input">Episode Title / #</label>
           <input type="text" id="episode-input" placeholder="e.g. Episode 15 - NOLA vs Baton Rouge">
         </div>
+
+        <!-- Transcript with paste/upload toggle -->
         <div class="field full">
-          <label for="transcript-input">Transcript</label>
-          <textarea id="transcript-input" rows="14" placeholder="Paste the full episode transcript here. Include timestamps if available (e.g. [00:05:32] or 5:32)."></textarea>
+          <label>Transcript</label>
+          <div class="transcript-toggle">
+            <button class="transcript-toggle-btn active" id="toggle-paste" onclick="setTranscriptMode('paste')">Paste Text</button>
+            <button class="transcript-toggle-btn" id="toggle-upload" onclick="setTranscriptMode('upload')">Upload File</button>
+          </div>
+
+          <!-- Paste mode -->
+          <textarea id="transcript-input" rows="14"
+            placeholder="Paste the full episode transcript here. Include timestamps if available (e.g. [00:05:32] or 5:32)."></textarea>
+
+          <!-- Upload mode -->
+          <div id="transcript-upload" class="file-dropzone" style="display:none"
+               ondragover="event.preventDefault(); this.classList.add('drag-over')"
+               ondragleave="this.classList.remove('drag-over')"
+               ondrop="handleFileDrop(event)">
+            <div class="dropzone-icon">📄</div>
+            <p class="dropzone-label">Drop .txt, .csv, .srt, or .vtt here</p>
+            <p class="dropzone-or">— or —</p>
+            <label class="btn btn-secondary dropzone-browse">
+              Browse File
+              <input type="file" id="transcript-file" accept=".txt,.csv,.srt,.vtt" style="display:none"
+                     onchange="handleFileSelect(this)">
+            </label>
+            <p id="dropzone-filename" class="dropzone-filename" style="display:none"></p>
+          </div>
         </div>
+
         <div class="field full">
           <label for="context-input">Additional Context (optional)</label>
-          <textarea id="context-input" rows="3" placeholder="e.g. Guest was trending on Twitter, specific topic went viral last week, target audience notes"></textarea>
+          <textarea id="context-input" rows="3"
+            placeholder="e.g. Guest was trending on Twitter, specific topic went viral last week, target audience notes"></textarea>
         </div>
         <div class="field">
-          <label for="clip-count">Max Clips to Find</label>
+          <label for="clip-count">Max Vertical Clips</label>
           <select id="clip-count">
             <option value="5">5 clips</option>
             <option value="8" selected>8 clips</option>
@@ -112,52 +165,115 @@
     <!-- Loading -->
     <section id="loading-section" style="display:none">
       <div class="loader"></div>
-      <p id="loading-text">Analyzing transcript...</p>
+      <p id="loading-text">Analyzing transcript…</p>
+      <p class="loading-sub">Running full episode analysis — this takes 30–60 seconds</p>
     </section>
 
-    <!-- Clips Output -->
-    <section id="clips-output" class="output-section" style="display:none">
+    <!-- ===== UNIFIED RESULTS OUTPUT ===== -->
+    <section id="results-output" class="output-section" style="display:none">
       <div class="output-toolbar">
-        <button class="btn btn-primary" onclick="exportPremiere()">📥 Export Premiere Markers (.csv)</button>
-        <button class="btn btn-secondary" onclick="copyClips()">📋 Copy All Clips</button>
+        <button class="btn btn-primary" onclick="exportPremiere()">📥 Markers CSV</button>
+        <button class="btn btn-secondary" onclick="downloadCutGuide()">📋 Cut Guide (.txt)</button>
+        <button class="btn btn-secondary" onclick="downloadSRT()">🎞 SRT Captions</button>
         <button class="btn btn-secondary" onclick="printOutput()">🖨 Print</button>
+        <button class="btn btn-gold" id="save-library-btn" onclick="saveToLibrary()" style="background:#c5a44e;color:#0a0a0a;border:none">💾 Save to Library</button>
         <button class="btn btn-ghost" onclick="backToForm()">← Edit Inputs</button>
       </div>
-      <div id="clips-content"></div>
-    </section>
+      <div id="save-toast" style="display:none;padding:10px 16px;background:#1a1a1a;border:1px solid #c5a44e44;border-radius:6px;font-size:13px;margin:8px 0"></div>
 
-    <!-- VOD Output -->
-    <section id="vod-output" class="output-section" style="display:none">
-      <div class="output-toolbar">
-        <button class="btn btn-secondary" onclick="copyVod()">📋 Copy All</button>
-        <button class="btn btn-secondary" onclick="printOutput()">🖨 Print</button>
-        <button class="btn btn-ghost" onclick="backToForm()">← Edit Inputs</button>
+      <!-- Episode Titles (open) -->
+      <div class="res-section open" id="sec-titles">
+        <div class="res-section-header" onclick="toggleSection('titles')">
+          <div class="res-section-title"><span class="res-icon">📝</span> Episode Titles</div>
+          <span class="chevron open" id="chev-titles">▼</span>
+        </div>
+        <div class="res-section-body" id="body-titles"></div>
       </div>
-      <div id="vod-content"></div>
-    </section>
 
-    <!-- Thumbs Output -->
-    <section id="thumbs-output" class="output-section" style="display:none">
-      <div class="output-toolbar">
-        <button class="btn btn-primary" onclick="openSendToDesign()">🎨 Send to Design</button>
-        <button class="btn btn-secondary" onclick="copyThumbs()">📋 Copy All</button>
-        <button class="btn btn-secondary" onclick="printOutput()">🖨 Print</button>
-        <button class="btn btn-ghost" onclick="backToForm()">← Edit Inputs</button>
+      <!-- Long Clips (open) -->
+      <div class="res-section open" id="sec-long">
+        <div class="res-section-header" onclick="toggleSection('long')">
+          <div class="res-section-title"><span class="res-icon">🎬</span> Long Clips <span class="res-badge">8+ min</span></div>
+          <span class="chevron open" id="chev-long">▼</span>
+        </div>
+        <div class="res-section-body" id="body-long"></div>
       </div>
-      <div id="thumbs-content"></div>
+
+      <!-- Vertical Clips (open) -->
+      <div class="res-section open" id="sec-clips">
+        <div class="res-section-header" onclick="toggleSection('clips')">
+          <div class="res-section-title"><span class="res-icon">✂️</span> Vertical Clips <span class="res-badge">Shorts / Reels</span></div>
+          <span class="chevron open" id="chev-clips">▼</span>
+        </div>
+        <div class="res-section-body" id="body-clips"></div>
+      </div>
+
+      <!-- VOD Segments (open) -->
+      <div class="res-section open" id="sec-vod">
+        <div class="res-section-header" onclick="toggleSection('vod')">
+          <div class="res-section-title"><span class="res-icon">📺</span> VOD Segments</div>
+          <span class="chevron open" id="chev-vod">▼</span>
+        </div>
+        <div class="res-section-body" id="body-vod"></div>
+      </div>
+
+      <!-- Thumbnails (open) -->
+      <div class="res-section open" id="sec-thumbs">
+        <div class="res-section-header" onclick="toggleSection('thumbs')">
+          <div class="res-section-title"><span class="res-icon">🖼</span> Thumbnail Quotes</div>
+          <span class="chevron open" id="chev-thumbs">▼</span>
+        </div>
+        <div class="res-section-body" id="body-thumbs">
+          <div class="thumb-actions" style="padding:16px 20px 0">
+            <button class="btn btn-primary" onclick="openSendToDesign()">🎨 Send to Design</button>
+            <button class="btn btn-secondary" onclick="copyThumbs()">📋 Copy All</button>
+          </div>
+          <div id="thumbs-inner"></div>
+        </div>
+      </div>
+
+      <!-- Topics & Segments (collapsed) -->
+      <div class="res-section" id="sec-topics">
+        <div class="res-section-header" onclick="toggleSection('topics')">
+          <div class="res-section-title"><span class="res-icon">📘</span> Topics &amp; Segments</div>
+          <span class="chevron" id="chev-topics">▶</span>
+        </div>
+        <div class="res-section-body" id="body-topics" style="display:none"></div>
+      </div>
+
+      <!-- Ad Breaks (collapsed) -->
+      <div class="res-section" id="sec-ads">
+        <div class="res-section-header" onclick="toggleSection('ads')">
+          <div class="res-section-title"><span class="res-icon">📢</span> Ad Break Suggestions</div>
+          <span class="chevron" id="chev-ads">▶</span>
+        </div>
+        <div class="res-section-body" id="body-ads" style="display:none"></div>
+      </div>
+
+      <!-- Reference Frames (collapsed) -->
+      <div class="res-section" id="sec-frames">
+        <div class="res-section-header" onclick="toggleSection('frames')">
+          <div class="res-section-title"><span class="res-icon">📸</span> Reference Frames <span class="res-badge muted">for designers</span></div>
+          <span class="chevron" id="chev-frames">▶</span>
+        </div>
+        <div class="res-section-body" id="body-frames" style="display:none"></div>
+      </div>
+
     </section>
 
-    <!-- Send to Design Modal -->
+    <!-- ===== SEND TO DESIGN MODAL ===== -->
     <div id="design-modal" class="modal-overlay" style="display:none">
       <div class="modal" style="max-width:560px">
         <h2>🎨 Send to Design</h2>
-        <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Review the thumbnail concepts, add notes, set a deadline, then send to the Head of Design.</p>
+        <p style="color:var(--text-dim);font-size:13px;margin-bottom:16px">Review the thumbnail quotes, add notes, set a deadline, then send to the Head of Design.</p>
         <label for="producer-name">Your Name</label>
         <input type="text" id="producer-name" placeholder="e.g. Ben Allen" style="margin-bottom:12px">
         <label for="design-deadline">Deadline</label>
         <input type="datetime-local" id="design-deadline" style="margin-bottom:12px">
         <label for="design-notes">Notes for Designer</label>
-        <textarea id="design-notes" rows="3" placeholder="Any specific direction, preferences, or must-haves..." style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:14px;font-family:var(--body);resize:vertical"></textarea>
+        <textarea id="design-notes" rows="3"
+          placeholder="Any specific direction, preferences, or must-haves…"
+          style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:14px;font-family:var(--body);resize:vertical"></textarea>
         <div id="design-concepts-preview" style="margin-top:12px;max-height:200px;overflow-y:auto"></div>
         <div class="modal-actions">
           <button class="btn btn-secondary" onclick="closeDesignModal()">Cancel</button>
@@ -166,8 +282,8 @@
       </div>
     </div>
 
-    <!-- Notification Toast -->
-    <div id="toast" style="display:none;position:fixed;bottom:24px;right:24px;background:var(--success);color:#000;padding:14px 24px;border-radius:var(--radius);font-weight:600;font-size:14px;z-index:300;box-shadow:0 4px 20px rgba(0,0,0,0.3)"></div>
+    <!-- Toast -->
+    <div id="toast" style="display:none;position:fixed;bottom:24px;right:24px;background:var(--success, #22c55e);color:#000;padding:14px 24px;border-radius:var(--radius);font-weight:600;font-size:14px;z-index:300;box-shadow:0 4px 20px rgba(0,0,0,0.3)"></div>
   </main>
 
   <script src="app.js"></script>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Clip Creator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0a; color: #e4e4e7; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    nav { background: #111; border-bottom: 1px solid #222; padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 16px; }
+    .nav-logo { font-size: 16px; font-weight: 800; color: #c5a44e; text-decoration: none; }
+    .nav-links { display: flex; gap: 16px; flex: 1; }
+    .nav-links a { color: #8b8fa3; text-decoration: none; font-size: 14px; }
+    .nav-links a.active { color: #e4e4e7; }
+    .main { max-width: 1000px; margin: 0 auto; padding: 40px 24px; }
+    h1 { font-size: 28px; font-weight: 700; margin-bottom: 32px; }
+    .stats-row { display: flex; gap: 16px; margin-bottom: 40px; }
+    .stat-card { background: #141414; border: 1px solid #222; border-radius: 8px; padding: 20px 24px; flex: 1; }
+    .stat-num { font-size: 36px; font-weight: 700; color: #c5a44e; }
+    .stat-label { font-size: 13px; color: #8b8fa3; margin-top: 4px; }
+    section { margin-bottom: 40px; }
+    h2 { font-size: 14px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #c5a44e; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #1e1e1e; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th { text-align: left; padding: 10px 12px; font-size: 11px; color: #8b8fa3; letter-spacing: 0.5px; border-bottom: 1px solid #1e1e1e; }
+    td { padding: 12px 12px; border-bottom: 1px solid #111; }
+    .role-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .role-admin { background: #c5a44e22; color: #c5a44e; }
+    .role-user  { background: #33333322; color: #8b8fa3; }
+    .btn { padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; }
+    .btn-ghost { background: transparent; color: #8b8fa3; border: 1px solid #333; }
+    .btn-gold { background: #c5a44e; color: #0a0a0a; }
+    .btn-danger { background: transparent; color: #ef4444; border: 1px solid #ef444444; }
+    .invite-form { display: flex; gap: 10px; margin-bottom: 16px; }
+    .invite-form input { flex: 1; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 6px; color: #e4e4e7; padding: 8px 12px; font-size: 13px; outline: none; }
+    .invite-form input:focus { border-color: #c5a44e44; }
+    .invite-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #111; font-size: 13px; }
+    .invite-code { font-family: monospace; font-size: 12px; background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 4px; padding: 4px 8px; color: #06b6d4; cursor: pointer; }
+    .invite-meta { color: #8b8fa3; font-size: 12px; flex: 1; }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-logo">CLIP CREATOR</a>
+  <div class="nav-links">
+    <a href="/">Analyze</a>
+    <a href="/library">Library</a>
+    <a href="/admin" class="active">Admin</a>
+  </div>
+</nav>
+
+<div class="main">
+  <h1>Admin Panel</h1>
+
+  <div class="stats-row">
+    <div class="stat-card"><div class="stat-num"><%= stats.users %></div><div class="stat-label">Total Users</div></div>
+    <div class="stat-card"><div class="stat-num"><%= stats.episodes %></div><div class="stat-label">Total Episodes</div></div>
+    <div class="stat-card"><div class="stat-num"><%= stats.invites %></div><div class="stat-label">Active Invites</div></div>
+  </div>
+
+  <!-- Users -->
+  <section>
+    <h2>Users</h2>
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>Action</th></tr></thead>
+      <tbody>
+        <% users.forEach(u => { %>
+        <tr>
+          <td><%= u.name || '—' %></td>
+          <td><%= u.email %></td>
+          <td><span class="role-badge role-<%= u.role %>"><%= u.role %></span></td>
+          <td><%= new Date(u.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></td>
+          <td>
+            <% if (u.role === 'user') { %>
+              <button class="btn btn-ghost" onclick="setRole(<%= u.id %>, 'admin')">Make Admin</button>
+            <% } else if (u.id !== currentUserId) { %>
+              <button class="btn btn-ghost" onclick="setRole(<%= u.id %>, 'user')">Demote</button>
+            <% } %>
+          </td>
+        </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- Invites -->
+  <section>
+    <h2>Invite Links</h2>
+    <div class="invite-form">
+      <input type="email" id="invite-email" placeholder="Specific email (optional — leave blank for open invite)">
+      <button class="btn btn-gold" onclick="createInvite()">Create Invite</button>
+    </div>
+    <div id="invite-list">
+      <% invites.forEach(inv => { %>
+      <div class="invite-row" id="inv-<%= inv.id %>">
+        <div class="invite-code" onclick="copyInvite('<%= inviteBase %>/invite/<%= inv.code %>')" title="Click to copy">
+          /invite/<%= inv.code.slice(0, 8) %>…
+        </div>
+        <div class="invite-meta">
+          <% if (inv.email) { %>For: <%= inv.email %> &nbsp;·&nbsp; <% } %>
+          Created <%= new Date(inv.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) %>
+        </div>
+        <button class="btn btn-danger" onclick="revokeInvite('<%= inv.code %>', <%= inv.id %>)">Revoke</button>
+      </div>
+      <% }) %>
+      <% if (!invites.length) { %><p style="color:#555;font-size:13px">No active invites.</p><% } %>
+    </div>
+  </section>
+</div>
+
+<script>
+  async function setRole(userId, role) {
+    const res = await fetch(`/admin/users/${userId}/role`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role }),
+    });
+    if (res.ok) location.reload();
+    else alert('Failed to update role');
+  }
+
+  async function createInvite() {
+    const email = document.getElementById('invite-email').value.trim() || null;
+    const res = await fetch('/admin/invites', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
+    });
+    if (res.ok) {
+      const { code, url } = await res.json();
+      navigator.clipboard.writeText(url).catch(() => {});
+      alert(`Invite created!\n\n${url}\n\n(Copied to clipboard)`);
+      location.reload();
+    } else alert('Failed to create invite');
+  }
+
+  function copyInvite(url) {
+    navigator.clipboard.writeText(url).then(() => alert('Copied: ' + url)).catch(() => {});
+  }
+
+  async function revokeInvite(code, id) {
+    if (!confirm('Revoke this invite?')) return;
+    const res = await fetch(`/admin/invites/${code}`, { method: 'DELETE' });
+    if (res.ok) document.getElementById(`inv-${id}`)?.remove();
+    else alert('Failed to revoke');
+  }
+</script>
+</body>
+</html>

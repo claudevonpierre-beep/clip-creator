@@ -1065,3 +1065,54 @@ async function sendToDesign() {
     alert(`Failed to send: ${err.message}`);
   }
 }
+
+// ── Library: Save to Library ────────────────────────────────────────────────
+
+async function saveToLibrary() {
+  if (!analysisData) return alert('No analysis to save.');
+  const show = document.getElementById('show-select')?.value || '';
+  const episodeName = document.getElementById('episode-input')?.value || '';
+  const guest = '';
+  const wordCount = transcriptText ? transcriptText.split(/\s+/).length : 0;
+
+  const btn = document.getElementById('save-library-btn');
+  if (btn) { btn.textContent = '⏳ Saving…'; btn.disabled = true; }
+
+  try {
+    const res = await fetch('/api/episodes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        show,
+        episodeName,
+        guest,
+        analysisJson: JSON.stringify(analysisData),
+        wordCount,
+      }),
+    });
+    if (!res.ok) throw new Error('Save failed');
+    const ep = await res.json();
+    const toast = document.getElementById('save-toast');
+    if (toast) {
+      toast.innerHTML = `✅ Saved! <a href="/episode/${ep.id}" style="color:#c5a44e;font-weight:600">View in Library →</a>`;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, 8000);
+    }
+    if (btn) { btn.textContent = '✓ Saved'; }
+  } catch (e) {
+    if (btn) { btn.textContent = '💾 Save to Library'; btn.disabled = false; }
+    alert('Failed to save: ' + e.message);
+  }
+}
+
+// ── Load user info on startup ───────────────────────────────────────────────
+(async function loadUser() {
+  try {
+    const res = await fetch('/api/me');
+    if (!res.ok) return;
+    const user = await res.json();
+    if (!user) return;
+    const el = document.getElementById('user-name');
+    if (el) el.textContent = user.name || '';
+  } catch (e) {}
+})();
