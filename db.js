@@ -62,4 +62,6 @@ db.exec(`
   );
 `);
 
+try { db.exec("ALTER TABLE episodes ADD COLUMN transcript TEXT DEFAULT ''"); } catch(e) {}
+
 export default db;

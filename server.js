@@ -84,12 +84,24 @@ function sendView(res, file, vars = {}) {
   }
 }
 
+// ── Persist SESSION_SECRET ──────────────────────────────────────────────────────
+if (!process.env.SESSION_SECRET) {
+  const generated = crypto.randomBytes(32).toString('hex');
+  const envPath = path.join(__dirname, '.env');
+  const envContent = existsSync(envPath) ? readFileSync(envPath, 'utf8') : '';
+  if (!envContent.includes('SESSION_SECRET=')) {
+    const line = `SESSION_SECRET=${generated}\n`;
+    writeFileSync(envPath, envContent + (envContent.endsWith('\n') || !envContent ? '' : '\n') + line);
+  }
+  process.env.SESSION_SECRET = generated;
+}
+
 // ── App setup ──────────────────────────────────────────────────────────────────
 const app = express();
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(session({
-  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex'),
+  secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: { maxAge: 30 * 24 * 60 * 60 * 1000 }, // 30 days
@@ -266,11 +278,11 @@ app.get('/api/config', (req, res) => {
 // ── API: Episodes ──────────────────────────────────────────────────────────────
 
 app.post('/api/episodes', requireAuth, (req, res) => {
-  const { show, episodeName, guest, analysisJson, wordCount } = req.body;
+  const { show, episodeName, guest, transcript, analysisJson, wordCount } = req.body;
   const userId = req.session.authMethod === 'password' ? null : req.session.userId;
   const result = db.prepare(
-    'INSERT INTO episodes (user_id, show, episode_name, guest, analysis_json, word_count) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(userId, show || '', episodeName || '', guest || '', analysisJson || '{}', wordCount || 0);
+    'INSERT INTO episodes (user_id, show, episode_name, guest, transcript, analysis_json, word_count) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).run(userId, show || '', episodeName || '', guest || '', transcript || '', analysisJson || '{}', wordCount || 0);
   const episode = db.prepare('SELECT * FROM episodes WHERE id = ?').get(result.lastInsertRowid);
   res.json(episode);
 });

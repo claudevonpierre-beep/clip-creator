@@ -8,23 +8,6 @@
 </head>
 <body>
 
-  <!-- ===== LOGIN SCREEN ===== -->
-  <div id="login-screen" class="login-screen">
-    <div class="login-box">
-      <div class="login-logo">
-        <h1>CLIP<br>CREATOR</h1>
-        <span class="login-subtitle">The 33rd Team</span>
-      </div>
-      <div class="login-form">
-        <label for="login-password">Access Code</label>
-        <input type="password" id="login-password" placeholder="Enter access code…" autocomplete="current-password"
-               onkeydown="if(event.key==='Enter') attemptLogin()">
-        <p id="login-error" class="login-error" style="display:none">Incorrect access code. Try again.</p>
-        <button class="btn btn-primary btn-lg" onclick="attemptLogin()">Unlock →</button>
-      </div>
-    </div>
-  </div>
-
   <!-- ===== SETTINGS MODAL ===== -->
   <div id="settings-modal" class="modal-overlay" style="display:none">
     <div class="modal">
@@ -103,6 +86,10 @@
           <label for="episode-input">Episode Title / #</label>
           <input type="text" id="episode-input" placeholder="e.g. Episode 15 - NOLA vs Baton Rouge">
         </div>
+        <div class="field">
+          <label for="guest-input">Guest</label>
+          <input type="text" id="guest-input" placeholder="e.g. Patrick Mahomes">
+        </div>
 
         <!-- Transcript with paste/upload toggle -->
         <div class="field full">
@@ -110,11 +97,13 @@
           <div class="transcript-toggle">
             <button class="transcript-toggle-btn active" id="toggle-paste" onclick="setTranscriptMode('paste')">Paste Text</button>
             <button class="transcript-toggle-btn" id="toggle-upload" onclick="setTranscriptMode('upload')">Upload File</button>
+            <button class="transcript-toggle-btn" id="toggle-audio" onclick="setTranscriptMode('audio')">🎙 Transcribe Audio</button>
           </div>
 
           <!-- Paste mode -->
           <textarea id="transcript-input" rows="14"
             placeholder="Paste the full episode transcript here. Include timestamps if available (e.g. [00:05:32] or 5:32)."></textarea>
+          <div id="transcript-stats" style="display:none;margin-top:6px;font-size:12px;color:#8b8fa3;font-family:monospace"></div>
 
           <!-- Upload mode -->
           <div id="transcript-upload" class="file-dropzone" style="display:none"
@@ -130,6 +119,26 @@
                      onchange="handleFileSelect(this)">
             </label>
             <p id="dropzone-filename" class="dropzone-filename" style="display:none"></p>
+          </div>
+
+          <!-- Audio transcription mode -->
+          <div id="transcript-audio" style="display:none;margin-top:8px">
+            <input type="password" id="assemblyai-key" placeholder="AssemblyAI API key (sk-…)"
+              style="width:100%;padding:8px 12px;background:#1a1a1a;border:1px solid #333;border-radius:6px;color:#e8e6e0;font-size:13px;margin-bottom:8px;box-sizing:border-box">
+            <div id="audio-dropzone" class="file-dropzone"
+                 ondragover="event.preventDefault();this.classList.add('drag-over')"
+                 ondragleave="this.classList.remove('drag-over')"
+                 ondrop="handleAudioDrop(event)"
+                 onclick="document.getElementById('audio-file-input').click()" style="cursor:pointer">
+              <div class="dropzone-icon">🎙</div>
+              <p class="dropzone-label">Drop audio/video file here (MP3, MP4, WAV, M4A)</p>
+              <p class="dropzone-or">— or click to browse —</p>
+              <input type="file" id="audio-file-input" accept="audio/*,video/mp4,.m4a" style="display:none"
+                     onchange="handleAudioSelect(this)">
+              <p id="audio-filename" style="display:none;color:#c5a44e;margin-top:8px;font-size:13px"></p>
+            </div>
+            <button id="transcribe-btn" class="btn btn-secondary" onclick="transcribeAudio()" style="margin-top:10px;width:100%">🎙 Start Transcription</button>
+            <div id="transcribe-status" style="display:none;margin-top:8px;padding:10px 14px;background:#1a1a1a;border-radius:6px;font-size:13px"></div>
           </div>
         </div>
 
@@ -184,15 +193,26 @@
       <div class="res-section open" id="sec-titles">
         <div class="res-section-header" onclick="toggleSection('titles')">
           <div class="res-section-title"><span class="res-icon">📝</span> Episode Titles</div>
+          <button class="btn-regen" onclick="event.stopPropagation();regenerateSection('titles')" title="Regenerate">↺</button>
           <span class="chevron open" id="chev-titles">▼</span>
         </div>
         <div class="res-section-body" id="body-titles"></div>
+      </div>
+
+      <!-- YouTube Description -->
+      <div class="res-section" id="sec-yt-desc">
+        <div class="res-section-header" onclick="toggleSection('yt-desc')">
+          <div class="res-section-title"><span class="res-icon">📺</span> YouTube Description</div>
+          <span class="chevron" id="chev-yt-desc">▶</span>
+        </div>
+        <div class="res-section-body" id="body-yt-desc" style="display:none"></div>
       </div>
 
       <!-- Long Clips (open) -->
       <div class="res-section open" id="sec-long">
         <div class="res-section-header" onclick="toggleSection('long')">
           <div class="res-section-title"><span class="res-icon">🎬</span> Long Clips <span class="res-badge">8+ min</span></div>
+          <button class="btn-regen" onclick="event.stopPropagation();regenerateSection('long')" title="Regenerate">↺</button>
           <span class="chevron open" id="chev-long">▼</span>
         </div>
         <div class="res-section-body" id="body-long"></div>
@@ -202,6 +222,7 @@
       <div class="res-section open" id="sec-clips">
         <div class="res-section-header" onclick="toggleSection('clips')">
           <div class="res-section-title"><span class="res-icon">✂️</span> Vertical Clips <span class="res-badge">Shorts / Reels</span></div>
+          <button class="btn-regen" onclick="event.stopPropagation();regenerateSection('clips')" title="Regenerate">↺</button>
           <span class="chevron open" id="chev-clips">▼</span>
         </div>
         <div class="res-section-body" id="body-clips"></div>
@@ -211,6 +232,7 @@
       <div class="res-section open" id="sec-vod">
         <div class="res-section-header" onclick="toggleSection('vod')">
           <div class="res-section-title"><span class="res-icon">📺</span> VOD Segments</div>
+          <button class="btn-regen" onclick="event.stopPropagation();regenerateSection('vod')" title="Regenerate">↺</button>
           <span class="chevron open" id="chev-vod">▼</span>
         </div>
         <div class="res-section-body" id="body-vod"></div>
@@ -220,6 +242,7 @@
       <div class="res-section open" id="sec-thumbs">
         <div class="res-section-header" onclick="toggleSection('thumbs')">
           <div class="res-section-title"><span class="res-icon">🖼</span> Thumbnail Quotes</div>
+          <button class="btn-regen" onclick="event.stopPropagation();regenerateSection('thumbs')" title="Regenerate">↺</button>
           <span class="chevron open" id="chev-thumbs">▼</span>
         </div>
         <div class="res-section-body" id="body-thumbs">

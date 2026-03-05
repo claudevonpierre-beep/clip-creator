@@ -83,20 +83,34 @@
 
   <div class="main">
     <h1>Episode Library</h1>
-    <p class="subtitle"><%= episodes.length %> saved episode<%= episodes.length !== 1 ? 's' : '' %></p>
+    <p class="subtitle" id="ep-count"><%= episodes.length %> saved episode<%= episodes.length !== 1 ? 's' : '' %></p>
 
     <% if (episodes.length > 0) { %>
-    <div class="filters" id="filters">
-      <button class="filter-btn active" data-show="all">All</button>
-      <% const shows = [...new Set(episodes.map(e => e.show))].filter(Boolean); %>
-      <% shows.forEach(show => { %>
-        <button class="filter-btn" data-show="<%= show %>"><%= show %></button>
-      <% }) %>
+
+    <!-- Search + filter bar -->
+    <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+      <input type="text" id="lib-search" placeholder="Search episodes, guests…" oninput="filterLibrary()"
+        style="flex:1;min-width:200px;padding:8px 14px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;color:#e4e4e7;font-size:14px;outline:none">
+      <select id="lib-show" onchange="filterLibrary()"
+        style="padding:8px 14px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:8px;color:#e4e4e7;font-size:14px;cursor:pointer">
+        <option value="">All Shows</option>
+        <option value="check_the_mic">Check the Mic</option>
+        <option value="in_the_bayou">In The Bayou</option>
+        <option value="home_grown">Home Grown</option>
+        <option value="nfl_spotlight">NFL Spotlight</option>
+        <option value="nfl_iq">NFL IQ</option>
+        <option value="nof">NOF</option>
+        <option value="st_brown">St. Brown Podcast</option>
+        <option value="other">Other</option>
+      </select>
     </div>
 
     <div class="episodes-grid" id="grid">
       <% episodes.forEach(ep => { %>
-      <div class="episode-card" data-show="<%= ep.show %>">
+      <div class="episode-card"
+           data-show="<%= (ep.show || '').toLowerCase() %>"
+           data-episode="<%= (ep.episode_name || '').toLowerCase() %>"
+           data-guest="<%= (ep.guest || '').toLowerCase() %>">
         <div class="show-badge"><%= ep.show || 'Unknown Show' %></div>
         <div class="ep-name"><%= ep.episode_name || 'Untitled Episode' %></div>
         <% if (ep.guest) { %><div class="ep-guest">Guest: <%= ep.guest %></div><% } %>
@@ -118,17 +132,24 @@
   </div>
 
   <script>
-    // Filter by show
-    document.querySelectorAll('.filter-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        const show = btn.dataset.show;
-        document.querySelectorAll('.episode-card').forEach(card => {
-          card.style.display = (show === 'all' || card.dataset.show === show) ? '' : 'none';
-        });
+    function filterLibrary() {
+      const query = (document.getElementById('lib-search')?.value || '').toLowerCase().trim();
+      const showFilter = (document.getElementById('lib-show')?.value || '').toLowerCase();
+      const cards = document.querySelectorAll('.episode-card');
+      let visible = 0;
+      cards.forEach(card => {
+        const matchShow  = !showFilter || card.dataset.show === showFilter;
+        const matchQuery = !query ||
+          card.dataset.episode.includes(query) ||
+          card.dataset.guest.includes(query) ||
+          card.dataset.show.includes(query);
+        const show = matchShow && matchQuery;
+        card.style.display = show ? '' : 'none';
+        if (show) visible++;
       });
-    });
+      const countEl = document.getElementById('ep-count');
+      if (countEl) countEl.textContent = `${visible} episode${visible !== 1 ? 's' : ''}`;
+    }
 
     async function deleteEpisode(id, btn) {
       if (!confirm('Delete this episode? This cannot be undone.')) return;

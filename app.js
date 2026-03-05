@@ -144,33 +144,24 @@ let currentMode = 'clips';
 let analysisData = null;   // unified result from single Claude call
 let transcriptText = '';   // raw transcript (from paste or file)
 
-// === Login ===
-function checkLogin() {
-  const authed = sessionStorage.getItem('clip_creator_auth');
-  if (authed === 'true') {
-    document.getElementById('login-screen').style.display = 'none';
-  }
-  // Otherwise login screen stays visible
-}
-
-function attemptLogin() {
-  const pw = document.getElementById('login-password').value;
-  const err = document.getElementById('login-error');
-  if (pw === '33rdclips2026') {
-    sessionStorage.setItem('clip_creator_auth', 'true');
-    document.getElementById('login-screen').style.display = 'none';
-    err.style.display = 'none';
-  } else {
-    err.style.display = '';
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-password').focus();
-  }
-}
-
 // === Init ===
 document.addEventListener('DOMContentLoaded', () => {
-  checkLogin();
   if (!localStorage.getItem('anthropic_api_key')) openSettings();
+
+  // Word count + cost estimate
+  const transcriptInput = document.getElementById('transcript-input');
+  const statsEl = document.getElementById('transcript-stats');
+  if (transcriptInput && statsEl) {
+    transcriptInput.addEventListener('input', () => {
+      const text = transcriptInput.value.trim();
+      if (!text) { statsEl.style.display = 'none'; return; }
+      const words = text.split(/\s+/).length;
+      const tokens = Math.round(words * 1.3);
+      const cost = (tokens / 1_000_000) * 3;
+      statsEl.textContent = `${words.toLocaleString()} words \u00b7 ~${tokens.toLocaleString()} tokens \u00b7 est. $${cost.toFixed(3)}`;
+      statsEl.style.display = '';
+    });
+  }
 });
 
 // === Sidebar ===
@@ -228,21 +219,30 @@ function saveSettings() {
 
 // === Transcript Mode Toggle ===
 function setTranscriptMode(mode) {
-  const pasteBtn = document.getElementById('toggle-paste');
+  const pasteBtn  = document.getElementById('toggle-paste');
   const uploadBtn = document.getElementById('toggle-upload');
-  const textarea = document.getElementById('transcript-input');
-  const dropzone = document.getElementById('transcript-upload');
+  const audioBtn  = document.getElementById('toggle-audio');
+  const textarea  = document.getElementById('transcript-input');
+  const statsEl   = document.getElementById('transcript-stats');
+  const dropzone  = document.getElementById('transcript-upload');
+  const audioZone = document.getElementById('transcript-audio');
+
+  // Reset all
+  [pasteBtn, uploadBtn, audioBtn].forEach(b => b && b.classList.remove('active'));
+  [textarea, dropzone, audioZone].forEach(el => el && (el.style.display = 'none'));
+  if (statsEl) statsEl.style.display = 'none';
 
   if (mode === 'paste') {
-    pasteBtn.classList.add('active');
-    uploadBtn.classList.remove('active');
-    textarea.style.display = '';
-    dropzone.style.display = 'none';
-  } else {
-    pasteBtn.classList.remove('active');
-    uploadBtn.classList.add('active');
-    textarea.style.display = 'none';
-    dropzone.style.display = '';
+    pasteBtn && pasteBtn.classList.add('active');
+    if (textarea) textarea.style.display = '';
+    // Restore stats if there's content
+    if (statsEl && textarea && textarea.value.trim()) statsEl.style.display = '';
+  } else if (mode === 'upload') {
+    uploadBtn && uploadBtn.classList.add('active');
+    if (dropzone) dropzone.style.display = '';
+  } else if (mode === 'audio') {
+    audioBtn && audioBtn.classList.add('active');
+    if (audioZone) audioZone.style.display = '';
   }
 }
 
@@ -300,6 +300,7 @@ function getFormData() {
     showName: profile.name,
     showContext: buildShowContext(profile),
     episode: document.getElementById('episode-input').value,
+    guest: document.getElementById('guest-input').value,
     transcript,
     context: document.getElementById('context-input').value,
     clipCount: document.getElementById('clip-count').value,
@@ -513,6 +514,7 @@ function parseJSON(raw) {
 // === Render All Results ===
 function renderResults() {
   renderEpisodeTitles();
+  renderYouTubeDescription();
   renderLongClips();
   renderViralClips();
   renderVodSegments();
@@ -573,6 +575,41 @@ function renderEpisodeTitles() {
     `</div>`;
 }
 
+// --- YouTube Description ---
+function renderYouTubeDescription() {
+  const el = document.getElementById('body-yt-desc');
+  if (!el) return;
+  const meta = analysisData._meta || {};
+  const titles = analysisData.episode_titles || [];
+  const segs = analysisData.vod_segments || [];
+  const clips = analysisData.viral_clips || [];
+
+  // Overview: 2-3 sentences using first title + first vod segment description
+  const title = titles[0] || meta.episode || 'Episode';
+  const segDesc = segs[0]?.description || 'a deep dive into this episode';
+  const overview = `${meta.show || 'The 33rd Team'} presents: ${title}. In this episode, ${segDesc}. Watch the full breakdown and let us know your thoughts in the comments!`;
+
+  // Chapters
+  let chapters = '00:00 Intro';
+  segs.forEach(seg => {
+    const tc = (seg.start || '00:00:00').replace(/^(\d{2}):/, '');
+    chapters += `\n${tc} ${seg.name}`;
+  });
+
+  // Hashtags from top viral clip
+  const hashtags = clips.slice(0, 3).map(c => c.hashtags || '').join(' ').trim();
+
+  // Footer
+  const footer = `Subscribe to ${meta.show || 'The 33rd Team'} for more NFL analysis and content.`;
+
+  const desc = `${overview}\n\n${chapters}\n\n${footer}${hashtags ? '\n\n' + hashtags : ''}`;
+
+  el.innerHTML = `
+    <button class="btn btn-secondary" onclick="copyText(document.getElementById('yt-desc-text').textContent)" style="margin-bottom:12px">📋 Copy Description</button>
+    <pre id="yt-desc-text" style="white-space:pre-wrap;font-family:var(--mono);font-size:13px;color:var(--text);background:var(--bg);padding:18px;border-radius:var(--radius);line-height:1.7">${esc(desc)}</pre>
+  `;
+}
+
 // --- Long Clips ---
 function renderLongClips() {
   const clips = analysisData.long_clips || [];
@@ -615,9 +652,22 @@ function renderViralClips() {
           <p style="color:var(--teal);margin-top:6px;font-family:var(--mono);font-size:12px">${esc(clip.hashtags || '')}</p>
         </div>
         ${clip.whyItWorks ? `<div class="clip-why">${esc(clip.whyItWorks)}</div>` : ''}
+        <button class="btn-copy-clip" onclick="copyClip(${clip.rank})">📋 Copy</button>
       </div>
     </div>
   `).join('');
+}
+
+function copyClip(rank) {
+  const clip = (analysisData?.viral_clips || []).find(c => c.rank === rank);
+  if (!clip) return;
+  const text = [
+    clip.title,
+    `${clip.startTime || '??'} → ${clip.endTime || '??'}`,
+    clip.caption || '',
+    clip.hashtags || ''
+  ].filter(Boolean).join('\n');
+  navigator.clipboard.writeText(text).then(() => showToast('Clip copied!'));
 }
 
 // --- VOD Segments ---
@@ -1102,8 +1152,9 @@ async function saveToLibrary() {
   if (!analysisData) return alert('No analysis to save.');
   const show = document.getElementById('show-select')?.value || '';
   const episodeName = document.getElementById('episode-input')?.value || '';
-  const guest = '';
-  const wordCount = transcriptText ? transcriptText.split(/\s+/).length : 0;
+  const guest = document.getElementById('guest-input')?.value || '';
+  const transcript = document.getElementById('transcript-input')?.value || transcriptText;
+  const wordCount = transcript ? transcript.split(/\s+/).length : 0;
 
   const btn = document.getElementById('save-library-btn');
   if (btn) { btn.textContent = '⏳ Saving…'; btn.disabled = true; }
@@ -1116,6 +1167,7 @@ async function saveToLibrary() {
         show,
         episodeName,
         guest,
+        transcript,
         analysisJson: JSON.stringify(analysisData),
         wordCount,
       }),
@@ -1146,3 +1198,126 @@ async function saveToLibrary() {
     if (el) el.textContent = user.name || '';
   } catch (e) {}
 })();
+
+// ── Regenerate Section ──────────────────────────────────────────────────────
+async function regenerateSection(section) {
+  if (!analysisData) return;
+  const keyMap = {
+    clips: 'viral_clips',
+    titles: 'episode_titles',
+    thumbs: 'thumbnail_quotes',
+    long: 'long_clips',
+    vod: 'vod_segments',
+  };
+  const key = keyMap[section];
+  if (!key) return;
+
+  const meta = analysisData._meta || {};
+  const bodyEl = document.getElementById('body-' + section);
+  if (bodyEl) bodyEl.innerHTML = '<div style="padding:20px;color:#8b8fa3;text-align:center">↺ Regenerating…</div>';
+
+  const existing = JSON.stringify(analysisData[key] || []);
+  const prompt = `You are an expert podcast producer for The 33rd Team.
+Show: ${meta.show || 'Unknown'}
+Episode: ${meta.episode || 'Unknown'}
+
+Current analysis context (${key}):
+${existing}
+
+Full analysis summary: ${JSON.stringify({ episode_titles: analysisData.episode_titles, topics: analysisData.topics })}
+
+Regenerate ONLY the "${key}" with improved, stronger results. Return ONLY valid JSON with this structure:
+{"${key}": [...]}
+
+Use the same JSON field names as before. Make the results more specific, punchy, and viral-optimized.`;
+
+  try {
+    const raw = await callClaude(prompt, 4000);
+    const parsed = parseJSON(raw);
+    if (!parsed || !parsed[key]) throw new Error('Bad response from Claude');
+    analysisData[key] = parsed[key];
+
+    // Re-render only that section
+    const renderMap = {
+      clips: renderViralClips,
+      titles: renderEpisodeTitles,
+      thumbs: renderThumbnailQuotes,
+      long: renderLongClips,
+      vod: renderVodSegments,
+    };
+    if (renderMap[section]) renderMap[section]();
+    showToast(`✅ ${section} regenerated!`);
+  } catch (e) {
+    if (bodyEl) bodyEl.innerHTML = `<p style="color:#ef4444;padding:16px">Regeneration failed: ${e.message}</p>`;
+  }
+}
+
+// ── AssemblyAI Audio Transcription UI ──────────────────────────────────────
+let audioFile = null;
+
+function handleAudioDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  const file = event.dataTransfer.files[0];
+  if (file) setAudioFile(file);
+}
+
+function handleAudioSelect(input) {
+  const file = input.files[0];
+  if (file) setAudioFile(file);
+}
+
+function setAudioFile(file) {
+  audioFile = file;
+  const nameEl = document.getElementById('audio-filename');
+  if (nameEl) { nameEl.textContent = `✓ ${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`; nameEl.style.display = ''; }
+}
+
+async function transcribeAudio() {
+  const key = document.getElementById('assemblyai-key')?.value?.trim();
+  const statusEl = document.getElementById('transcribe-status');
+  const btn = document.getElementById('transcribe-btn');
+
+  if (!key) { alert('Enter your AssemblyAI API key first.'); return; }
+  if (!audioFile) { alert('Select an audio or video file first.'); return; }
+
+  const setStatus = (msg, color = '#8b8fa3') => {
+    if (statusEl) { statusEl.style.display = ''; statusEl.style.color = color; statusEl.textContent = msg; }
+  };
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Transcribing…'; }
+  setStatus('Uploading audio file…');
+
+  try {
+    const formData = new FormData();
+    formData.append('audio', audioFile);
+
+    const res = await fetch('/api/transcribe', {
+      method: 'POST',
+      headers: { 'x-assemblyai-key': key },
+      body: formData,
+    });
+
+    setStatus('Transcribing… this takes 2–5 minutes depending on file length.');
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err.error || 'Transcription failed');
+    }
+
+    const data = await res.json();
+    if (!data.transcript) throw new Error('No transcript returned');
+
+    // Populate textarea + switch to paste mode
+    const textarea = document.getElementById('transcript-input');
+    if (textarea) { textarea.value = data.transcript; textarea.dispatchEvent(new Event('input')); }
+    transcriptText = data.transcript;
+    setTranscriptMode('paste');
+    setStatus('✅ Transcription complete!', '#22c55e');
+    showToast('✅ Transcript ready — review and click Analyze');
+  } catch (e) {
+    setStatus(`❌ Error: ${e.message}`, '#ef4444');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🎙 Start Transcription'; }
+  }
+}
