@@ -1220,3 +1220,22 @@ body::after {
   transition: color 0.15s, border-color 0.15s;
 }
 .btn-copy-clip:hover { color: #c5a44e; border-color: #c5a44e44; }
+
+/* ============================================================
+   THUMBNAIL EDITABLE FIELDS
+   ============================================================ */
+.thumb-editable {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+  font-family: var(--font);
+  resize: vertical;
+  outline: none;
+  line-height: 1.5;
+  transition: border-color 0.15s;
+}
+.thumb-editable:focus { border-color: var(--accent); }

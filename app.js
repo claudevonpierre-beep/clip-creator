@@ -699,27 +699,43 @@ function renderVodSegments() {
 // --- Thumbnail Quotes ---
 function renderThumbnailQuotes() {
   const thumbs = analysisData.thumbnail_quotes || [];
+  const vods   = analysisData.vod_segments    || [];
   const el = document.getElementById('thumbs-inner');
   if (!thumbs.length) { el.innerHTML = '<p class="empty-state">No thumbnail quotes found.</p>'; return; }
-  el.innerHTML = thumbs.map((t, i) => `
+  el.innerHTML = thumbs.map((t, i) => {
+    // Auto-fill VOD title: match by timecode proximity, fall back to index
+    let vodTitle = vods[i]?.title_a || '';
+    if (!vodTitle && vods.length) {
+      // Try to find the VOD segment whose range contains this timecode
+      const tcSec = tcToSec(t.timecode || '');
+      const match = vods.find(v => tcToSec(v.start) <= tcSec && tcSec <= tcToSec(v.end));
+      vodTitle = match?.title_a || vods[0]?.title_a || '';
+    }
+    return `
     <div class="thumb-card">
-      <h3>Quote ${i + 1}</h3>
+      <h3>Thumbnail ${i + 1}</h3>
+      <div class="thumb-concept">
+        <div class="thumb-concept-label">VOD Title</div>
+        <textarea class="thumb-editable" data-thumb-vod="${i}" rows="2">${esc(vodTitle)}</textarea>
+      </div>
       <div class="thumb-concept">
         <div class="thumb-concept-label">Quote</div>
-        <div class="thumb-text-overlay">"${esc(t.quote)}"</div>
+        <textarea class="thumb-editable" data-thumb-quote="${i}" rows="2">${esc(t.quote)}</textarea>
       </div>
       <div class="thumb-concept">
-        <div class="thumb-concept-label">Timecode · Speaker</div>
-        <p style="font-family:var(--mono);font-size:12px;color:var(--teal)">${esc(t.timecode || '??:??:??')}</p>
-        <p>${esc(t.speaker || 'Unknown')}</p>
+        <div class="thumb-concept-label">Suggested Design</div>
+        <textarea class="thumb-editable" data-thumb-design="${i}" rows="3">${esc(t.suggested_overlay || '')}</textarea>
       </div>
-      ${t.suggested_overlay ? `
-      <div class="thumb-concept">
-        <div class="thumb-concept-label">Suggested Overlay</div>
-        <p>${esc(t.suggested_overlay)}</p>
-      </div>` : ''}
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+function tcToSec(tc) {
+  if (!tc) return 0;
+  const parts = tc.split(':').map(Number);
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  return 0;
 }
 
 // --- Topics ---
@@ -1085,15 +1101,24 @@ function openSendToDesign() {
   document.getElementById('producer-name').value = localStorage.getItem('producer_name') || '';
 
   const preview = document.getElementById('design-concepts-preview');
-  preview.innerHTML = thumbs.map((t, i) => `
+  preview.innerHTML = thumbs.map((t, i) => {
+    // Pull current values from the main results panel if they've been edited
+    const quoteEl  = document.querySelector(`[data-thumb-quote="${i}"]`);
+    const designEl = document.querySelector(`[data-thumb-design="${i}"]`);
+    const vodEl    = document.querySelector(`[data-thumb-vod="${i}"]`);
+    const quote    = quoteEl  ? quoteEl.value  : t.quote;
+    const design   = designEl ? designEl.value : (t.suggested_overlay || '');
+    const vodTitle = vodEl    ? vodEl.value    : '';
+    return `
     <div style="background:var(--bg);padding:12px;border-radius:var(--radius);margin-bottom:10px">
-      <div style="font-size:11px;color:var(--accent);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:6px">
-        Quote ${i + 1} &nbsp;<span style="color:var(--text-dim);font-weight:400">${esc(t.timecode || '')}${t.speaker ? ' · ' + esc(t.speaker) : ''}</span>
+      <div style="font-size:11px;color:var(--accent);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">
+        Thumbnail ${i + 1}
       </div>
-      <textarea data-quote-idx="${i}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 10px;font-size:14px;font-family:var(--font);resize:vertical;outline:none" rows="2">${esc(t.quote)}</textarea>
-      ${t.suggested_overlay ? `<div style="font-size:12px;color:var(--text-dim);margin-top:4px">Suggested overlay: ${esc(t.suggested_overlay)}</div>` : ''}
-    </div>
-  `).join('');
+      ${vodTitle ? `<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px">VOD: ${esc(vodTitle)}</div>` : ''}
+      <textarea data-quote-idx="${i}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 10px;font-size:14px;font-family:var(--font);resize:vertical;outline:none;margin-bottom:6px" rows="2" placeholder="Quote">${esc(quote)}</textarea>
+      <textarea data-design-idx="${i}" style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:8px 10px;font-size:13px;font-family:var(--font);resize:vertical;outline:none;color:var(--text-dim)" rows="2" placeholder="Suggested Design">${esc(design)}</textarea>
+    </div>`;
+  }).join('');
 
   document.getElementById('design-modal').style.display = '';
 }
@@ -1119,10 +1144,17 @@ async function sendToDesign() {
 
   localStorage.setItem('producer_name', producerName);
 
-  // Collect edited quotes from the modal textareas
+  // Collect edited values from modal textareas + inline thumb fields
   const editedConcepts = (analysisData.thumbnail_quotes || []).map((t, i) => {
-    const ta = document.querySelector(`[data-quote-idx="${i}"]`);
-    return { ...t, quote: ta ? ta.value.trim() : t.quote };
+    const quoteEl  = document.querySelector(`[data-quote-idx="${i}"]`);
+    const designEl = document.querySelector(`[data-design-idx="${i}"]`);
+    const vodEl    = document.querySelector(`[data-thumb-vod="${i}"]`);
+    return {
+      ...t,
+      quote:             quoteEl  ? quoteEl.value.trim()  : t.quote,
+      suggested_overlay: designEl ? designEl.value.trim() : (t.suggested_overlay || ''),
+      vod_title:         vodEl    ? vodEl.value.trim()    : '',
+    };
   });
 
   try {
