@@ -4,305 +4,642 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Design Queue — Clip Creator</title>
-  <link rel="stylesheet" href="styles.css">
   <style>
-    body { display: block; }
-    .page-wrap { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
-    .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; }
-    .page-header h1 { font-size: 24px; font-weight: 700; }
-    .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-    .badge.pending { background: rgba(245,158,11,0.15); color: #f59e0b; }
-    .badge.in-progress { background: rgba(79,140,255,0.15); color: #4f8cff; }
-    .badge.completed { background: rgba(52,211,153,0.15); color: #34d399; }
-    .badge.overdue { background: rgba(248,113,113,0.15); color: #f87171; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .request-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      margin-bottom: 20px;
-      overflow: hidden;
+    :root {
+      --bg:       #0a0a0a;
+      --surface:  #141414;
+      --surface2: #1a1a1a;
+      --border:   #222;
+      --border2:  #2a2a2a;
+      --text:     #e8e6e0;
+      --text-dim: #8b8fa3;
+      --accent:   #c5a44e;
+      --blue:     #4f8cff;
+      --green:    #34d399;
+      --red:      #f87171;
+      --amber:    #f59e0b;
+      --font:     -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --mono:     'SF Mono', 'Fira Mono', monospace;
+      --radius:   8px;
     }
-    .request-card.overdue { border-color: #f87171; }
-    .request-top {
-      padding: 20px 24px;
+
+    body { background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }
+
+    /* ── Top nav ── */
+    nav {
+      background: #111;
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
       display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      cursor: pointer;
+      align-items: center;
+      gap: 20px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
-    .request-top:hover { background: var(--surface2); }
-    .request-info h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-    .request-meta { font-size: 13px; color: var(--text-dim); display: flex; gap: 16px; flex-wrap: wrap; }
-    .request-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-
-    .request-detail {
-      display: none;
-      padding: 0 24px 24px;
-      border-top: 1px solid var(--border);
-    }
-    .request-detail.open { display: block; padding-top: 20px; }
-
-    .concept-block {
-      background: var(--bg);
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 12px;
-    }
-    .concept-label { font-size: 11px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 6px; }
-    .concept-text-overlay { font-size: 20px; font-weight: 800; color: #f59e0b; margin-top: 6px; }
-
-    .action-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-
-    .notes-area {
-      width: 100%;
-      padding: 10px 14px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+    .nav-logo { font-size: 15px; font-weight: 800; color: var(--accent); text-decoration: none; letter-spacing: -0.3px; }
+    .nav-title { font-size: 15px; font-weight: 600; color: var(--text); }
+    .nav-sep { color: var(--border2); }
+    .nav-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .role-select {
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
       color: var(--text);
-      font-size: 14px;
-      font-family: var(--font);
-      resize: vertical;
-      margin-top: 12px;
-    }
-    .notes-area:focus { outline: none; border-color: var(--accent); }
-
-    .upload-zone {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 32px;
-      text-align: center;
-      margin-top: 16px;
+      font-size: 13px;
       cursor: pointer;
-      transition: border-color 0.15s;
     }
-    .upload-zone:hover { border-color: var(--accent); }
-    .upload-zone.dragover { border-color: var(--accent); background: rgba(228,76,101,0.05); }
-    .upload-zone input { display: none; }
-    .upload-zone p { color: var(--text-dim); font-size: 14px; }
 
-    .uploaded-thumb {
-      margin-top: 16px;
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-    .uploaded-thumb img { max-width: 100%; height: auto; border-radius: var(--radius); }
+    /* ── Main layout ── */
+    .main { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
 
-    .deadline-warn { color: #f87171; font-weight: 600; }
-    .empty-state { text-align: center; padding: 80px 20px; color: var(--text-dim); }
-    .empty-state p { font-size: 16px; }
-
-    .tab-bar { display: flex; gap: 4px; margin-bottom: 24px; }
+    /* ── Tabs ── */
+    .tab-bar { display: flex; gap: 6px; margin-bottom: 28px; flex-wrap: wrap; }
     .tab {
-      padding: 8px 16px;
-      border-radius: var(--radius);
-      font-size: 14px;
+      padding: 7px 16px;
+      border-radius: 20px;
+      font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       background: var(--surface);
       border: 1px solid var(--border);
       color: var(--text-dim);
       transition: all 0.15s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .tab:hover:not(.active) { background: var(--surface2); }
-    .tab .count { margin-left: 6px; opacity: 0.7; }
+    .tab:hover:not(.active) { border-color: var(--border2); color: var(--text); }
+    .tab.active { background: var(--accent); color: #0a0a0a; border-color: var(--accent); font-weight: 700; }
+    .tab .count {
+      background: rgba(0,0,0,0.2);
+      border-radius: 10px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .tab.active .count { background: rgba(0,0,0,0.15); }
 
-    .back-link { color: var(--accent); text-decoration: none; font-size: 14px; }
-    .back-link:hover { text-decoration: underline; }
+    /* ── Request card ── */
+    .req-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: border-color 0.15s;
+    }
+    .req-card:hover { border-color: var(--border2); }
+    .req-card.overdue { border-left: 3px solid var(--red); }
+    .req-card.completed { opacity: 0.75; }
+
+    .req-header {
+      padding: 18px 22px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .req-header:hover { background: var(--surface2); }
+
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; margin-top: 6px;
+    }
+    .status-dot.pending    { background: var(--amber); }
+    .status-dot.in-progress { background: var(--blue); }
+    .status-dot.completed  { background: var(--green); }
+
+    .req-info { flex: 1; min-width: 0; }
+    .req-title { font-size: 15px; font-weight: 600; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .req-meta { font-size: 12px; color: var(--text-dim); display: flex; gap: 14px; flex-wrap: wrap; }
+    .req-meta .overdue-tag { color: var(--red); font-weight: 600; }
+
+    .req-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 11px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .badge.pending     { background: rgba(245,158,11,0.12); color: var(--amber); border: 1px solid rgba(245,158,11,0.25); }
+    .badge.in-progress { background: rgba(79,140,255,0.12); color: var(--blue);  border: 1px solid rgba(79,140,255,0.25); }
+    .badge.completed   { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
+    .badge.overdue     { background: rgba(248,113,113,0.12); color: var(--red);  border: 1px solid rgba(248,113,113,0.25); }
+
+    .chevron { font-size: 11px; color: var(--text-dim); transition: transform 0.2s; }
+    .chevron.open { transform: rotate(90deg); }
+
+    /* ── Detail panel ── */
+    .req-detail { display: none; border-top: 1px solid var(--border); }
+    .req-detail.open { display: block; }
+    .req-detail-inner { padding: 22px; }
+
+    /* Two-column layout: concepts | designer panel */
+    .detail-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 700px) { .detail-cols { grid-template-columns: 1fr; } }
+
+    .col-label {
+      font-size: 10px;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    /* ── Concept blocks ── */
+    .concept-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-bottom: 10px;
+    }
+    .concept-num {
+      font-size: 10px;
+      color: var(--accent);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 10px;
+    }
+    .concept-field { margin-bottom: 8px; }
+    .concept-field-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 3px; }
+    .concept-field-value { font-size: 14px; color: var(--text); line-height: 1.4; }
+    .concept-field-value.quote { font-size: 16px; font-weight: 700; color: var(--amber); }
+    .concept-field-value.vod { font-size: 13px; color: var(--text-dim); }
+    .concept-field-value.design { font-size: 13px; }
+
+    .producer-notes-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-top: 4px;
+    }
+
+    /* ── Designer panel ── */
+    .designer-panel { display: flex; flex-direction: column; gap: 16px; }
+
+    .field-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+
+    textarea.designer-notes {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 13px;
+      font-family: var(--font);
+      resize: vertical;
+      outline: none;
+      line-height: 1.5;
+      transition: border-color 0.15s;
+    }
+    textarea.designer-notes:focus { border-color: var(--accent); }
+
+    /* Drive link */
+    .drive-input-wrap { display: flex; gap: 8px; }
+    input.drive-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input.drive-input:focus { border-color: var(--accent); }
+    input.drive-input::placeholder { color: #444; }
+    .drive-link-view {
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    .drive-link-view a { color: var(--accent); text-decoration: none; }
+    .drive-link-view a:hover { text-decoration: underline; }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 22px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .upload-zone:hover { border-color: var(--accent); background: rgba(197,164,78,0.04); }
+    .upload-zone.dragover { border-color: var(--accent); background: rgba(197,164,78,0.08); }
+    .upload-zone p { font-size: 13px; color: var(--text-dim); }
+    .upload-zone input { display: none; }
+    .upload-result { margin-top: 10px; border-radius: var(--radius); overflow: hidden; }
+    .upload-result img { max-width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+
+    /* Status buttons */
+    .status-actions { display: flex; flex-direction: column; gap: 8px; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, background 0.15s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #0a0a0a; }
+    .btn-primary:hover:not(:disabled) { opacity: 0.85; }
+    .btn-blue    { background: rgba(79,140,255,0.15); color: var(--blue); border: 1px solid rgba(79,140,255,0.3); }
+    .btn-blue:hover:not(:disabled) { background: rgba(79,140,255,0.25); }
+    .btn-green   { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid rgba(52,211,153,0.3); }
+    .btn-green:hover:not(:disabled) { background: rgba(52,211,153,0.25); }
+    .btn-ghost   { background: transparent; color: var(--text-dim); border: 1px solid var(--border2); }
+    .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: #444; }
+    .btn-danger  { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+    .btn-danger:hover:not(:disabled) { background: rgba(248,113,113,0.22); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    .save-indicator {
+      font-size: 11px;
+      color: var(--green);
+      text-align: center;
+      height: 16px;
+      transition: opacity 0.5s;
+    }
+
+    /* ── Empty state ── */
+    .empty { text-align: center; padding: 80px 20px; color: var(--text-dim); }
+    .empty h2 { font-size: 18px; margin-bottom: 8px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e1e1e;
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 13px;
+      color: var(--text);
+      z-index: 999;
+      display: none;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
   </style>
 </head>
 <body>
-  <div class="page-wrap">
-    <div class="page-header">
-      <div>
-        <a href="/" class="back-link">← Back to Clip Creator</a>
-        <h1 style="margin-top:8px">🎨 Design Queue</h1>
-      </div>
-      <div id="role-toggle">
-        <select id="role-select" class="btn btn-secondary" onchange="switchRole()">
-          <option value="designer">Head of Design</option>
-          <option value="producer">Jr. Producer</option>
-        </select>
-      </div>
-    </div>
 
-    <div class="tab-bar" id="tab-bar"></div>
-    <div id="requests-container"></div>
+<nav>
+  <a href="/" class="nav-logo">CLIP CREATOR</a>
+  <span class="nav-sep">›</span>
+  <span class="nav-title">🎨 Design Queue</span>
+  <div class="nav-right">
+    <select class="role-select" id="role-select" onchange="switchRole()">
+      <option value="designer">👩‍🎨 Designer View</option>
+      <option value="producer">🎬 Producer View</option>
+    </select>
   </div>
+</nav>
 
-  <script>
-    let requests = [];
-    let currentTab = 'all';
-    let currentRole = 'designer';
+<div class="main">
+  <div class="tab-bar" id="tab-bar"></div>
+  <div id="requests-container"></div>
+</div>
 
-    async function loadRequests() {
-      const res = await fetch('/api/requests');
-      requests = await res.json();
-      renderTabs();
-      renderRequests();
+<div id="toast"></div>
+
+<script>
+  let requests = [];
+  let currentTab = 'pending';
+  let currentRole = 'designer';
+  let saveTimers = {};
+
+  async function loadRequests() {
+    const res = await fetch('/api/requests');
+    requests = await res.json();
+    renderTabs();
+    renderRequests();
+  }
+
+  function switchRole() {
+    currentRole = document.getElementById('role-select').value;
+    renderRequests();
+  }
+
+  function setTab(tab) {
+    currentTab = tab;
+    renderTabs();
+    renderRequests();
+  }
+
+  function renderTabs() {
+    const now = new Date();
+    const counts = { all: requests.length, pending: 0, 'in-progress': 0, completed: 0, overdue: 0 };
+    requests.forEach(r => {
+      if (r.status) counts[r.status] = (counts[r.status] || 0) + 1;
+      if (r.deadline && new Date(r.deadline) < now && r.status !== 'completed') counts.overdue++;
+    });
+    const tabs = [
+      { id: 'all',         label: 'All'         },
+      { id: 'pending',     label: '⏳ Pending'   },
+      { id: 'in-progress', label: '🔵 In Progress'},
+      { id: 'completed',   label: '✅ Completed' },
+      { id: 'overdue',     label: '⚠ Overdue'   },
+    ];
+    document.getElementById('tab-bar').innerHTML = tabs.map(t =>
+      `<div class="tab ${currentTab === t.id ? 'active' : ''}" onclick="setTab('${t.id}')">
+        ${t.label}<span class="count">${counts[t.id] || 0}</span>
+      </div>`
+    ).join('');
+  }
+
+  function renderRequests() {
+    const now = new Date();
+    let filtered = [...requests];
+    if (currentTab === 'overdue') {
+      filtered = requests.filter(r => r.deadline && new Date(r.deadline) < now && r.status !== 'completed');
+    } else if (currentTab !== 'all') {
+      filtered = requests.filter(r => r.status === currentTab);
+    }
+    // Newest first; completed at bottom
+    filtered.sort((a, b) => {
+      if (a.status === 'completed' && b.status !== 'completed') return 1;
+      if (b.status === 'completed' && a.status !== 'completed') return -1;
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
+
+    if (!filtered.length) {
+      document.getElementById('requests-container').innerHTML =
+        `<div class="empty"><h2>No ${currentTab === 'all' ? '' : currentTab} requests</h2></div>`;
+      return;
     }
 
-    function switchRole() {
-      currentRole = document.getElementById('role-select').value;
-      renderRequests();
-    }
+    document.getElementById('requests-container').innerHTML = filtered.map(r => buildCard(r)).join('');
+  }
 
-    function renderTabs() {
-      const counts = { all: requests.length, pending: 0, 'in-progress': 0, completed: 0, overdue: 0 };
-      const now = new Date();
-      requests.forEach(r => {
-        counts[r.status] = (counts[r.status] || 0) + 1;
-        if (r.deadline && new Date(r.deadline) < now && r.status !== 'completed') counts.overdue++;
-      });
+  function buildCard(r) {
+    const now = new Date();
+    const isOverdue = r.deadline && new Date(r.deadline) < now && r.status !== 'completed';
+    const deadlineStr = r.deadline
+      ? new Date(r.deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : 'No deadline';
 
-      document.getElementById('tab-bar').innerHTML = ['all', 'pending', 'in-progress', 'completed', 'overdue'].map(tab => {
-        const label = tab === 'all' ? 'All' : tab === 'in-progress' ? 'In Progress' : tab.charAt(0).toUpperCase() + tab.slice(1);
-        return `<div class="tab ${currentTab === tab ? 'active' : ''}" onclick="setTab('${tab}')">${label}<span class="count">${counts[tab]}</span></div>`;
-      }).join('');
-    }
+    // Concepts column
+    const conceptsHtml = (r.concepts || []).length
+      ? (r.concepts || []).map((c, i) => `
+          <div class="concept-block">
+            <div class="concept-num">Thumbnail ${i + 1}</div>
+            ${c.vod_title ? `<div class="concept-field"><div class="concept-field-label">VOD Title</div><div class="concept-field-value vod">${esc(c.vod_title)}</div></div>` : ''}
+            ${c.quote ? `<div class="concept-field"><div class="concept-field-label">Quote</div><div class="concept-field-value quote">"${esc(c.quote)}"</div></div>` : ''}
+            ${c.suggested_overlay ? `<div class="concept-field"><div class="concept-field-label">Suggested Design</div><div class="concept-field-value design">${esc(c.suggested_overlay)}</div></div>` : ''}
+          </div>`).join('')
+      : '<p style="font-size:13px;color:var(--text-dim)">No thumbnail concepts.</p>';
 
-    function setTab(tab) {
-      currentTab = tab;
-      renderTabs();
-      renderRequests();
-    }
+    const producerNotesHtml = r.notes
+      ? `<div class="producer-notes-block" style="margin-top:12px"><div class="concept-num">Producer Notes</div><p style="font-size:13px;line-height:1.5">${esc(r.notes)}</p></div>`
+      : '';
 
-    function renderRequests() {
-      const now = new Date();
-      let filtered = requests;
-      if (currentTab === 'overdue') {
-        filtered = requests.filter(r => r.deadline && new Date(r.deadline) < now && r.status !== 'completed');
-      } else if (currentTab !== 'all') {
-        filtered = requests.filter(r => r.status === currentTab);
-      }
+    // Current drive link display
+    const driveLinkDisplay = r.driveLink
+      ? `<div class="drive-link-view">🔗 <a href="${esc(r.driveLink)}" target="_blank" rel="noopener">Open current file in Drive</a></div>`
+      : '';
 
-      if (!filtered.length) {
-        document.getElementById('requests-container').innerHTML = `<div class="empty-state"><p>No ${currentTab === 'all' ? '' : currentTab + ' '}requests</p></div>`;
-        return;
-      }
+    // Uploaded image
+    const uploadedImg = r.uploadPath
+      ? `<div class="upload-result"><img src="${esc(r.uploadPath)}" alt="Uploaded thumbnail"></div>`
+      : '';
 
-      document.getElementById('requests-container').innerHTML = filtered.map(r => {
-        const isOverdue = r.deadline && new Date(r.deadline) < now && r.status !== 'completed';
-        const deadlineStr = r.deadline ? new Date(r.deadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'No deadline';
+    // Designer panel
+    let designerPanel = '';
+    if (currentRole === 'designer') {
+      const statusButtons = r.status === 'pending'
+        ? `<button class="btn btn-blue" onclick="updateStatus('${r.id}','in-progress')">🔵 Start Working</button>`
+        : r.status === 'in-progress'
+        ? `<button class="btn btn-green" onclick="saveAndComplete('${r.id}')">✅ Mark as Completed</button>
+           <button class="btn btn-ghost btn-sm" onclick="updateStatus('${r.id}','pending')">← Back to Pending</button>`
+        : `<button class="btn btn-ghost btn-sm" onclick="updateStatus('${r.id}','in-progress')">↩ Reopen</button>`;
 
-        return `
-        <div class="request-card ${isOverdue ? 'overdue' : ''}" id="card-${r.id}">
-          <div class="request-top" onclick="toggleDetail('${r.id}')">
-            <div class="request-info">
-              <h3>${esc(r.show)} — ${esc(r.episode)}</h3>
-              <div class="request-meta">
-                <span>From: ${esc(r.createdBy)}</span>
-                <span>${isOverdue ? '<span class="deadline-warn">⚠ OVERDUE</span> — ' : ''}Due: ${deadlineStr}</span>
-                <span>${new Date(r.createdAt).toLocaleDateString()}</span>
-              </div>
-            </div>
-            <div class="request-right">
-              <span class="badge ${r.status} ${isOverdue ? 'overdue' : ''}">${r.status}</span>
+      designerPanel = `
+        <div class="designer-panel">
+          <div>
+            <div class="field-label">Designer Notes</div>
+            <textarea class="designer-notes" id="notes-${r.id}" rows="3"
+              placeholder="Notes for the producer…"
+              oninput="scheduleNoteSave('${r.id}')">${esc(r.designerNotes || '')}</textarea>
+            <div class="save-indicator" id="save-ind-${r.id}"></div>
+          </div>
+
+          <div>
+            <div class="field-label">Google Drive Link</div>
+            <div class="drive-input-wrap">
+              <input class="drive-input" id="drive-${r.id}" type="url"
+                placeholder="Paste Google Drive link…"
+                value="${esc(r.driveLink || '')}"
+                oninput="scheduleDriveSave('${r.id}')">
+              ${r.driveLink ? `<a href="${esc(r.driveLink)}" target="_blank" class="btn btn-ghost btn-sm" rel="noopener">Open ↗</a>` : ''}
             </div>
           </div>
-          <div class="request-detail" id="detail-${r.id}">
-            ${r.concepts?.length ? `
-              <div style="font-size:11px;color:var(--accent);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Thumbnail Quotes (${r.concepts.length})</div>
-              ${r.concepts.map((c, i) => `
-                <div class="concept-block">
-                  <div class="concept-label">Quote ${i + 1}${c.timecode ? ' &middot; ' + esc(c.timecode) : ''}${c.speaker ? ' &middot; ' + esc(c.speaker) : ''}</div>
-                  <div class="concept-text-overlay">"${esc(c.quote || c.text || c.textOverlay || '')}"</div>
-                  ${c.suggested_overlay ? `<div style="font-size:12px;color:var(--text-dim);margin-top:4px">Overlay: ${esc(c.suggested_overlay)}</div>` : ''}
-                </div>
-              `).join('')}
-            ` : '<p style="color:var(--text-dim);font-size:13px;margin-bottom:12px">No concepts attached.</p>'}
-            ${r.notes ? `<div class="concept-block"><div class="concept-label">Producer Notes</div><p>${esc(r.notes)}</p></div>` : ''}
-            ${r.designerNotes ? `<div class="concept-block"><div class="concept-label">Designer Notes</div><p>${esc(r.designerNotes)}</p></div>` : ''}
-            ${r.uploadPath ? `<div class="uploaded-thumb"><img src="${r.uploadPath}" alt="Uploaded thumbnail"></div>` : ''}
 
-            ${currentRole === 'designer' ? `
-              <textarea class="notes-area" id="notes-${r.id}" rows="2" placeholder="Add designer notes...">${esc(r.designerNotes || '')}</textarea>
-              ${r.status !== 'completed' ? `
-                <div class="upload-zone" id="upload-${r.id}" onclick="document.getElementById('file-${r.id}').click()"
-                  ondragover="event.preventDefault();this.classList.add('dragover')"
-                  ondragleave="this.classList.remove('dragover')"
-                  ondrop="event.preventDefault();this.classList.remove('dragover');handleUpload('${r.id}',event.dataTransfer.files[0])">
-                  <p>📁 Drop thumbnail here or click to upload</p>
-                  <input type="file" id="file-${r.id}" accept="image/*" onchange="handleUpload('${r.id}',this.files[0])">
-                </div>
-              ` : ''}
-              <div class="action-row">
-                ${r.status === 'pending' ? `<button class="btn btn-primary" onclick="updateStatus('${r.id}','in-progress')">Start Working</button>` : ''}
-                ${r.status === 'in-progress' ? `<button class="btn btn-primary" onclick="markComplete('${r.id}')">✅ Mark Complete</button>` : ''}
-                ${r.status === 'completed' ? `<button class="btn btn-secondary" onclick="updateStatus('${r.id}','in-progress')">Reopen</button>` : ''}
-                <button class="btn btn-secondary" onclick="saveDesignerNotes('${r.id}')">Save Notes</button>
-              </div>
-            ` : `
-              <div class="action-row">
-                <button class="btn btn-danger" onclick="deleteRequest('${r.id}')">Delete Request</button>
-              </div>
-            `}
+          <div>
+            <div class="field-label">Upload Thumbnail File ${r.uploadPath ? '(replace)' : '(optional)'}</div>
+            <div class="upload-zone" id="zone-${r.id}"
+              onclick="document.getElementById('file-${r.id}').click()"
+              ondragover="event.preventDefault();this.classList.add('dragover')"
+              ondragleave="this.classList.remove('dragover')"
+              ondrop="event.preventDefault();this.classList.remove('dragover');handleUpload('${r.id}',event.dataTransfer.files[0])">
+              <p>📁 Drop image here or click to browse</p>
+              <input type="file" id="file-${r.id}" accept="image/*"
+                onchange="handleUpload('${r.id}',this.files[0])">
+            </div>
+            ${uploadedImg}
+          </div>
+
+          <div class="status-actions">
+            ${statusButtons}
           </div>
         </div>`;
-      }).join('');
+    } else {
+      // Producer view
+      const designerNotesHtml = r.designerNotes
+        ? `<div class="producer-notes-block"><div class="concept-num">Designer Notes</div><p style="font-size:13px;line-height:1.5">${esc(r.designerNotes)}</p></div>`
+        : '';
+      const fileLinkHtml = (r.driveLink || r.uploadPath) ? `
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+          ${r.driveLink ? `<a href="${esc(r.driveLink)}" target="_blank" class="btn btn-ghost btn-sm" rel="noopener">🔗 Open in Google Drive ↗</a>` : ''}
+          ${r.uploadPath ? `<div class="upload-result"><img src="${esc(r.uploadPath)}" alt="Completed thumbnail"></div>` : ''}
+        </div>` : '';
+      designerPanel = `
+        <div>
+          ${designerNotesHtml}
+          ${fileLinkHtml}
+          <div style="margin-top:16px">
+            <button class="btn btn-danger btn-sm" onclick="deleteRequest('${r.id}')">Delete Request</button>
+          </div>
+        </div>`;
     }
 
-    function toggleDetail(id) {
-      document.getElementById(`detail-${id}`).classList.toggle('open');
-    }
+    return `
+    <div class="req-card ${isOverdue && r.status !== 'completed' ? 'overdue' : ''} ${r.status === 'completed' ? 'completed' : ''}" id="card-${r.id}">
+      <div class="req-header" onclick="toggleDetail('${r.id}')">
+        <div class="status-dot ${r.status}"></div>
+        <div class="req-info">
+          <div class="req-title">${esc(r.show)} — ${esc(r.episode)}</div>
+          <div class="req-meta">
+            <span>From: <strong>${esc(r.createdBy)}</strong></span>
+            <span>${isOverdue ? '<span class="overdue-tag">⚠ OVERDUE</span> — ' : ''}Due: ${deadlineStr}</span>
+            <span>${(r.concepts || []).length} thumbnail${(r.concepts || []).length !== 1 ? 's' : ''}</span>
+            <span>${new Date(r.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          </div>
+        </div>
+        <div class="req-right">
+          <span class="badge ${isOverdue && r.status !== 'completed' ? 'overdue' : r.status}">${r.status === 'in-progress' ? 'In Progress' : r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
+          <span class="chevron" id="chev-${r.id}">›</span>
+        </div>
+      </div>
+      <div class="req-detail" id="detail-${r.id}">
+        <div class="req-detail-inner">
+          <div class="detail-cols">
+            <div>
+              <div class="col-label">Thumbnail Concepts</div>
+              ${conceptsHtml}
+              ${producerNotesHtml}
+            </div>
+            <div>
+              <div class="col-label">${currentRole === 'designer' ? 'Designer Workspace' : 'Delivery'}</div>
+              ${designerPanel}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
 
-    async function updateStatus(id, status) {
-      await fetch(`/api/requests/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      await loadRequests();
-    }
+  function toggleDetail(id) {
+    const detail = document.getElementById(`detail-${id}`);
+    const chev   = document.getElementById(`chev-${id}`);
+    const isOpen = detail.classList.contains('open');
+    detail.classList.toggle('open', !isOpen);
+    if (chev) chev.classList.toggle('open', !isOpen);
+  }
 
-    async function markComplete(id) {
-      const notes = document.getElementById(`notes-${id}`)?.value || '';
-      await fetch(`/api/requests/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'completed', designerNotes: notes })
-      });
-      await loadRequests();
-    }
+  // ── Auto-save notes (debounced 1.5s) ──────────────────────────────────────
+  function scheduleNoteSave(id) {
+    clearTimeout(saveTimers['notes-' + id]);
+    saveTimers['notes-' + id] = setTimeout(() => saveNotes(id), 1500);
+  }
 
-    async function saveDesignerNotes(id) {
-      const notes = document.getElementById(`notes-${id}`)?.value || '';
-      await fetch(`/api/requests/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ designerNotes: notes })
-      });
-      alert('Notes saved');
-    }
+  async function saveNotes(id) {
+    const notes = document.getElementById(`notes-${id}`)?.value || '';
+    await fetch(`/api/requests/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ designerNotes: notes }),
+    });
+    const ind = document.getElementById(`save-ind-${id}`);
+    if (ind) { ind.textContent = '✓ Saved'; setTimeout(() => { ind.textContent = ''; }, 2000); }
+  }
 
-    async function handleUpload(id, file) {
-      if (!file) return;
-      const res = await fetch(`/api/requests/${id}/upload`, {
-        method: 'POST',
-        headers: { 'Content-Type': file.type },
-        body: file
-      });
-      if (res.ok) await loadRequests();
-      else alert('Upload failed');
-    }
+  // ── Auto-save Drive link (debounced 1.5s) ─────────────────────────────────
+  function scheduleDriveSave(id) {
+    clearTimeout(saveTimers['drive-' + id]);
+    saveTimers['drive-' + id] = setTimeout(() => saveDriveLink(id), 1500);
+  }
 
-    async function deleteRequest(id) {
-      if (!confirm('Delete this request?')) return;
-      await fetch(`/api/requests/${id}`, { method: 'DELETE' });
-      await loadRequests();
-    }
+  async function saveDriveLink(id) {
+    const link = document.getElementById(`drive-${id}`)?.value || '';
+    await fetch(`/api/requests/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ driveLink: link }),
+    });
+    const ind = document.getElementById(`save-ind-${id}`);
+    if (ind) { ind.textContent = '✓ Saved'; setTimeout(() => { ind.textContent = ''; }, 2000); }
+  }
 
-    function esc(t) {
-      if (!t) return '';
-      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    }
+  // ── Status updates ─────────────────────────────────────────────────────────
+  async function updateStatus(id, status) {
+    await fetch(`/api/requests/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    toast(`Status updated: ${status}`);
+    await loadRequests();
+  }
 
-    loadRequests();
-    // Auto-refresh every 30s
-    setInterval(loadRequests, 30000);
-  </script>
+  async function saveAndComplete(id) {
+    const notes    = document.getElementById(`notes-${id}`)?.value    || '';
+    const driveLink = document.getElementById(`drive-${id}`)?.value   || '';
+    await fetch(`/api/requests/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed', designerNotes: notes, driveLink }),
+    });
+    toast('✅ Marked as completed!');
+    await loadRequests();
+  }
+
+  // ── File upload (FormData) ─────────────────────────────────────────────────
+  async function handleUpload(id, file) {
+    if (!file) return;
+    const zone = document.getElementById(`zone-${id}`);
+    if (zone) zone.style.opacity = '0.5';
+    const fd = new FormData();
+    fd.append('file', file);
+    const res = await fetch(`/api/requests/${id}/upload`, { method: 'POST', body: fd });
+    if (res.ok) { toast('📎 File uploaded!'); await loadRequests(); }
+    else { toast('Upload failed — try again'); if (zone) zone.style.opacity = '1'; }
+  }
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+  async function deleteRequest(id) {
+    if (!confirm('Delete this request permanently?')) return;
+    await fetch(`/api/requests/${id}`, { method: 'DELETE' });
+    await loadRequests();
+  }
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function toast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.style.display = 'block';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  function esc(t) {
+    if (!t) return '';
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  loadRequests();
+  setInterval(loadRequests, 30000);
+</script>
 </body>
 </html>

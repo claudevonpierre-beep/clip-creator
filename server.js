@@ -524,7 +524,7 @@ app.post('/api/requests', (req, res) => {
     show: req.body.show || '', episode: req.body.episode || '',
     deadline: req.body.deadline || '', status: 'pending',
     concepts: req.body.concepts || [], notes: req.body.notes || '',
-    designerNotes: '', completedAt: null, uploadPath: null,
+    designerNotes: '', driveLink: '', completedAt: null, uploadPath: null,
   };
   reqs.unshift(request);
   saveRequests(reqs);
@@ -547,13 +547,16 @@ app.post('/api/requests/:id/upload', upload.single('file'), (req, res) => {
   const reqs = loadRequests();
   const idx = reqs.findIndex(r => r.id === req.params.id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
-  const ct = req.file?.mimetype || 'image/png';
-  const ext = ct.includes('jpeg') || ct.includes('jpg') ? '.jpg' : ct.includes('webp') ? '.webp' : '.png';
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  const ct = req.file.mimetype || 'image/png';
+  const ext = ct.includes('jpeg') || ct.includes('jpg') ? '.jpg'
+            : ct.includes('webp') ? '.webp'
+            : ct.includes('gif')  ? '.gif'
+            : '.png';
   const filename = `thumb-${req.params.id.slice(0, 8)}${ext}`;
   writeFileSync(path.join(__dirname, 'data', 'uploads', filename), req.file.buffer);
   reqs[idx].uploadPath = `/data/uploads/${filename}`;
-  reqs[idx].status = 'completed';
-  reqs[idx].completedAt = new Date().toISOString();
+  // Don't auto-complete on upload — designer marks complete explicitly
   saveRequests(reqs);
   res.json(reqs[idx]);
 });
