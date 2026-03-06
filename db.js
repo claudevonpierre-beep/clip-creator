@@ -7,9 +7,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = process.env.DATABASE_URL || path.join(__dirname, 'data', 'clips.db');
 
-mkdirSync(path.join(__dirname, 'data'), { recursive: true });
+// DATA_DIR: use env var for Railway persistent volume, otherwise local ./data
+export const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
+const DB_PATH = process.env.DATABASE_URL || path.join(DATA_DIR, 'clips.db');
+
+mkdirSync(DATA_DIR, { recursive: true });
 
 const db = new DatabaseSync(DB_PATH);
 

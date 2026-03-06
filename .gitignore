@@ -1,4 +1,5 @@
 node_modules/
 data/
-*.env
 .env
+# Keep .env.example in git (it has no secrets)
+

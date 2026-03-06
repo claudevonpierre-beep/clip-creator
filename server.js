@@ -12,7 +12,7 @@ import { createServer } from 'http';
 import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 
-import db from './db.js';
+import db, { DATA_DIR } from './db.js';
 import {
   requireAuth, requireAdmin,
   checkPassword, upsertGoogleUser,
@@ -109,10 +109,14 @@ app.use(session({
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } });
 
-mkdirSync(path.join(__dirname, 'data', 'uploads'), { recursive: true });
+const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+mkdirSync(UPLOADS_DIR, { recursive: true });
+
+// ── Serve uploaded files — auth required ───────────────────────────────────────
+app.use('/data/uploads', requireAuth, express.static(UPLOADS_DIR));
 
 // ── Static files ───────────────────────────────────────────────────────────────
-app.use('/data/uploads', express.static(path.join(__dirname, 'data', 'uploads')));
+// Uploaded thumbnails served through auth-gated route (not raw static)
 app.use(express.static(__dirname, {
   index: false,
   setHeaders: (res, filePath) => {
@@ -505,7 +509,7 @@ app.delete('/admin/invites/:code', requireAdmin, (req, res) => {
 
 // ── Legacy design queue API (keep existing) ────────────────────────────────────
 import { readFileSync as rf, writeFileSync, existsSync } from 'fs';
-const REQUESTS_FILE = path.join(__dirname, 'data', 'requests.json');
+const REQUESTS_FILE = path.join(DATA_DIR, 'requests.json');
 function loadRequests() {
   try { return JSON.parse(rf(REQUESTS_FILE, 'utf8')); } catch { return []; }
 }
@@ -554,7 +558,7 @@ app.post('/api/requests/:id/upload', upload.single('file'), (req, res) => {
             : ct.includes('gif')  ? '.gif'
             : '.png';
   const filename = `thumb-${req.params.id.slice(0, 8)}${ext}`;
-  writeFileSync(path.join(__dirname, 'data', 'uploads', filename), req.file.buffer);
+  writeFileSync(path.join(UPLOADS_DIR, filename), req.file.buffer);
   reqs[idx].uploadPath = `/data/uploads/${filename}`;
   // Don't auto-complete on upload — designer marks complete explicitly
   saveRequests(reqs);
@@ -562,7 +566,7 @@ app.post('/api/requests/:id/upload', upload.single('file'), (req, res) => {
 });
 
 // ── Catch-all: serve static or 404 ────────────────────────────────────────────
-app.get('/design-queue', (req, res) => res.sendFile(path.join(__dirname, 'design-queue.html')));
+app.get('/design-queue', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'design-queue.html')));
 app.use((req, res) => res.status(404).send('Not found'));
 
 app.listen(PORT, () => {
