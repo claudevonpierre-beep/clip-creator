@@ -2,8 +2,9 @@
  * Clip Creator v2 — Express server
  * Serves existing frontend + adds library, auth, exports, transcription, admin
  */
-process.on('uncaughtException', (err) => { console.error('UNCAUGHT:', err); process.exit(1); });
-process.on('unhandledRejection', (err) => { console.error('UNHANDLED:', err); process.exit(1); });
+process.on('uncaughtException', (err) => { console.error('UNCAUGHT EXCEPTION:', err.stack || err); process.exit(1); });
+process.on('unhandledRejection', (err) => { console.error('UNHANDLED REJECTION:', err?.stack || err); process.exit(1); });
+console.log('🔧 Starting server — NODE_ENV:', process.env.NODE_ENV, '| PORT:', process.env.PORT, '| DATA_DIR:', process.env.DATA_DIR);
 
 import express from 'express';
 import session from 'express-session';
