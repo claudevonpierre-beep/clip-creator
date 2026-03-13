@@ -1,18 +1,17 @@
-FROM node:22-alpine
+FROM node:22-slim
 
 WORKDIR /app
 
-# Install build tools needed for better-sqlite3 native compilation
-RUN apk add --no-cache python3 make g++
+# Install build tools for better-sqlite3 native compilation (Debian)
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies first (cached layer)
+# Install dependencies
 COPY package*.json ./
 RUN npm ci
 
 # Copy app files
 COPY . .
 
-ENV PORT=3334
-EXPOSE 3334
+EXPOSE 8080
 
 CMD ["node", "server.js"]
