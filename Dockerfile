@@ -12,6 +12,7 @@ RUN npm ci
 # Copy app files
 COPY . .
 
+ENV PORT=3334
 EXPOSE 3334
 
 CMD ["node", "server.js"]
