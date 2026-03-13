@@ -37,6 +37,10 @@
         <span class="mode-icon">🎬</span>
         <span class="mode-name">Long Clips</span>
       </div>
+      <div class="mode-item" data-mode="medium" id="sidebar-medium" style="display:none" onclick="selectMode('medium')">
+        <span class="mode-icon">⏱</span>
+        <span class="mode-name">Medium Clips</span>
+      </div>
       <div class="mode-item" data-mode="vod" onclick="selectMode('vod')">
         <span class="mode-icon">📺</span>
         <span class="mode-name">VOD Segments</span>
@@ -162,6 +166,7 @@
             <option value="30-60">30–60 sec (Shorts/Reels)</option>
             <option value="60-90" selected>60–90 sec (Sweet spot)</option>
             <option value="90-180">90–180 sec (Long-form vertical)</option>
+            <option value="dual">Both: 30-60s shorts + 3-4 min clips</option>
           </select>
         </div>
       </div>
@@ -226,6 +231,15 @@
           <span class="chevron open" id="chev-clips">▼</span>
         </div>
         <div class="res-section-body" id="body-clips"></div>
+      </div>
+
+      <!-- Medium Clips 3-4 min (hidden unless dual mode) -->
+      <div class="res-section open" id="sec-medium" style="display:none">
+        <div class="res-section-header" onclick="toggleSection('medium')">
+          <div class="res-section-title"><span class="res-icon">⏱</span> Medium Clips <span class="res-badge">3–4 min</span></div>
+          <span class="chevron open" id="chev-medium">▼</span>
+        </div>
+        <div class="res-section-body" id="body-medium"></div>
       </div>
 
       <!-- VOD Segments (open) -->

@@ -162,6 +162,19 @@ document.addEventListener('DOMContentLoaded', () => {
       statsEl.style.display = '';
     });
   }
+
+  // Auto-select dual clip mode for Check the Mic
+  const showSelect = document.getElementById('show-select');
+  const clipLengthSelect = document.getElementById('clip-length');
+  if (showSelect && clipLengthSelect) {
+    showSelect.addEventListener('change', () => {
+      if (showSelect.value === 'check_the_mic') {
+        clipLengthSelect.value = 'dual';
+      } else if (clipLengthSelect.value === 'dual') {
+        clipLengthSelect.value = '60-90';
+      }
+    });
+  }
 });
 
 // === Sidebar ===
@@ -174,6 +187,7 @@ function selectMode(mode) {
   const titles = {
     clips: 'Vertical Clips',
     long: 'Long Clips',
+    medium: 'Medium Clips (3–4 min)',
     vod: 'VOD Segments',
     thumbs: 'Thumbnails',
   };
@@ -184,7 +198,7 @@ function selectMode(mode) {
   // If results are showing, scroll to the relevant section
   const resultsVisible = document.getElementById('results-output').style.display !== 'none';
   if (resultsVisible && mode !== 'queue') {
-    const sectionMap = { clips: 'sec-clips', long: 'sec-long', vod: 'sec-vod', thumbs: 'sec-thumbs' };
+    const sectionMap = { clips: 'sec-clips', long: 'sec-long', medium: 'sec-medium', vod: 'sec-vod', thumbs: 'sec-thumbs' };
     const secId = sectionMap[mode];
     if (secId) {
       const el = document.getElementById(secId);
@@ -369,8 +383,9 @@ Analyze this transcript and produce a COMPLETE episode guide in a single pass.
 
 SHOW: ${form.showName}
 EPISODE: ${form.episode}
-TARGET VERTICAL CLIP LENGTH: ${form.clipLength} seconds
+TARGET VERTICAL CLIP LENGTH: ${form.clipLength === 'dual' ? '30-60 seconds (short clips)' : form.clipLength + ' seconds'}
 MAX VERTICAL CLIPS: ${form.clipCount}
+${form.clipLength === 'dual' ? 'DUAL CLIP MODE: Also generate 3-4 min medium clips as a separate array (see medium_clips in JSON).' : ''}
 ${form.context ? `ADDITIONAL CONTEXT: ${form.context}` : ''}
 
 ## SHOW PROFILE — USE THIS TO RANK AND PRIORITIZE ALL CONTENT:
@@ -418,6 +433,20 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.
       "why": "Why this 8+ minute section works as a standalone YouTube upload"
     }
   ],
+  "medium_clips": [
+    {
+      "rank": 1,
+      "title": "Short punchy title",
+      "hook": "Opening line or moment that grabs attention",
+      "quote": "The key 2-3 lines that make this clip work",
+      "startTime": "HH:MM:SS",
+      "endTime": "HH:MM:SS",
+      "durationSec": 210,
+      "caption": "Suggested social media caption with emojis",
+      "hashtags": "#tag1 #tag2 #tag3",
+      "whyItWorks": "Why this 3-4 min segment works as a standalone clip"
+    }
+  ],
   "vod_segments": [
     {
       "name": "Segment name",
@@ -462,6 +491,7 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.
 RULES:
 - Rank viral_clips by actual performance potential using the show's clip DNA above — not generic metrics.
 - Include ${form.clipCount} vertical clips, 4-6 long clips (8+ min each), 5-8 VOD segments, 5 episode titles.
+${form.clipLength === 'dual' ? '- DUAL MODE: Include 4-6 medium_clips (3-4 min each, 180-240 sec). These are distinct from short viral_clips (30-60s) AND from long_clips (8+ min). Medium clips should be complete arguments, debates, or stories that work as standalone 3-4 min YouTube uploads. Rank by standalone value.' : '- Leave medium_clips as an empty array [].'}
 - Include 5-8 thumbnail quotes (max 8 words each, visually impactful).
 - Include 3-5 ad break suggestions at natural topic transitions.
 - Include 5-8 reference frames to help a designer who hasn't seen the episode.
@@ -516,6 +546,7 @@ function renderResults() {
   renderEpisodeTitles();
   renderYouTubeDescription();
   renderLongClips();
+  renderMediumClips();
   renderViralClips();
   renderVodSegments();
   renderThumbnailQuotes();
@@ -624,6 +655,41 @@ function renderLongClips() {
       <div class="long-clip-title">${esc(lc.title)}</div>
       <div class="long-clip-quote">"${esc(lc.quote)}"</div>
       ${lc.why ? `<div class="long-clip-why">${esc(lc.why)}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// --- Medium Clips (3-4 min, dual mode) ---
+function renderMediumClips() {
+  const clips = analysisData.medium_clips || [];
+  const sec = document.getElementById('sec-medium');
+  const sidebar = document.getElementById('sidebar-medium');
+  if (!clips.length) {
+    if (sec) sec.style.display = 'none';
+    if (sidebar) sidebar.style.display = 'none';
+    return;
+  }
+  if (sec) sec.style.display = '';
+  if (sidebar) sidebar.style.display = '';
+  const el = document.getElementById('body-medium');
+  if (!el) return;
+  el.innerHTML = clips.map(clip => `
+    <div class="clip-card" data-rank="${clip.rank}">
+      <div class="clip-card-inner">
+        <div class="clip-header">
+          <span class="clip-rank">#${clip.rank}</span>
+          <span class="clip-time">${esc(clip.startTime || '')} → ${esc(clip.endTime || '')} · ${clip.durationSec ? Math.round(clip.durationSec/60) + ' min' : '?'}</span>
+        </div>
+        <div class="clip-title">${esc(clip.title)}</div>
+        ${clip.hook ? `<div class="clip-hook">${esc(clip.hook)}</div>` : ''}
+        <div class="clip-quote">${esc(clip.quote)}</div>
+        <div class="clip-caption">
+          <strong>Caption</strong>
+          <p>${esc(clip.caption || '')}</p>
+          <p class="clip-hashtags">${esc(clip.hashtags || '')}</p>
+        </div>
+        ${clip.whyItWorks ? `<div class="clip-why">${esc(clip.whyItWorks)}</div>` : ''}
+      </div>
     </div>
   `).join('');
 }
@@ -813,6 +879,16 @@ function exportPremiere() {
     csv += `${name}\t${desc}\t${inTC}\t${outTC}\t\tComment\tGreen\n`;
   });
 
+  // Medium clips (3-4 min) → Magenta
+  (analysisData.medium_clips || []).forEach(mc => {
+    const name = `⏱ MED #${mc.rank} ${mc.title}`.replace(/\t/g, ' ');
+    const dur = mc.durationSec ? toTimecode(secToHMS(mc.durationSec)) : '';
+    const desc = `${mc.whyItWorks || ''}`.replace(/\t|\n/g, ' ');
+    const inTC = toTimecode(mc.startTime || '00:00:00');
+    const outTC = toTimecode(mc.endTime || '00:00:00');
+    csv += `${name}\t${desc}\t${inTC}\t${outTC}\t${dur}\tComment\tMagenta\n`;
+  });
+
   // VOD segments → Cyan
   (analysisData.vod_segments || []).forEach(seg => {
     const name = `📺 VOD: ${seg.name}`.replace(/\t/g, ' ');
@@ -881,6 +957,21 @@ function downloadCutGuide() {
     lines.push(`   Why: ${lc.why || ''}`);
   });
   lines.push('');
+
+  // Medium Clips (3-4 min)
+  if ((analysisData.medium_clips || []).length) {
+    lines.push('='.repeat(60));
+    lines.push('MEDIUM CLIPS — 3-4 MIN (ranked by standalone value)');
+    lines.push('='.repeat(60));
+    (analysisData.medium_clips || []).forEach(mc => {
+      const dur = mc.durationSec ? Math.round(mc.durationSec / 60) + ' min' : '?';
+      lines.push(`\n${mc.rank}. ⏱ ${(mc.title || '').toUpperCase()} [${mc.startTime || '??'} - ${mc.endTime || '??'}] (~${dur})`);
+      lines.push(`   Hook: ${mc.hook || ''}`);
+      lines.push(`   "${mc.quote || ''}"`);
+      lines.push(`   Why: ${mc.whyItWorks || ''}`);
+    });
+    lines.push('');
+  }
 
   // VOD Segments
   lines.push('='.repeat(60));
