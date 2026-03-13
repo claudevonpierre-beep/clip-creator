@@ -576,7 +576,7 @@ app.post('/api/requests/:id/upload', upload.single('file'), (req, res) => {
 app.get('/design-queue', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'design-queue.html')));
 app.use((req, res) => res.status(404).send('Not found'));
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🎬 Clip Creator v2 running at http://localhost:${PORT}`);
   console.log(`   Library:  http://localhost:${PORT}/library`);
   console.log(`   Admin:    http://localhost:${PORT}/admin`);
