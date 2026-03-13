@@ -117,7 +117,7 @@
         <div class="ep-date"><%= new Date(ep.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) %></div>
         <div class="card-actions">
           <a href="/?episode=<%= ep.id %>" class="btn-sm btn-gold">View</a>
-          <button class="btn-sm btn-ghost" onclick="deleteEpisode(<%= ep.id %>, this)">Delete</button>
+          <button class="btn-sm btn-ghost btn-danger" onclick="deleteEpisode(<%= ep.id %>, '<%= (ep.episode_name || 'this episode').replace(/'/g, '') %>', this)">Delete</button>
         </div>
       </div>
       <% }) %>
@@ -151,11 +151,13 @@
       if (countEl) countEl.textContent = `${visible} episode${visible !== 1 ? 's' : ''}`;
     }
 
-    async function deleteEpisode(id, btn) {
-      if (!confirm('Delete this episode? This cannot be undone.')) return;
+    async function deleteEpisode(id, name, btn) {
+      if (!confirm(`Delete "${name}"?\n\nThis will permanently remove the episode and all saved analysis. This cannot be undone.`)) return;
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
       const res = await fetch(`/api/episodes/${id}`, { method: 'DELETE' });
       if (res.ok) btn.closest('.episode-card').remove();
-      else alert('Delete failed');
+      else { alert('Delete failed — please try again.'); btn.disabled = false; btn.textContent = 'Delete'; }
     }
   </script>
 </body>

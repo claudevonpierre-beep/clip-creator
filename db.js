@@ -1,7 +1,7 @@
 /**
- * db.js — SQLite database using Node v22+ built-in node:sqlite
+ * db.js — SQLite database using better-sqlite3
  */
-import { DatabaseSync } from 'node:sqlite';
+import Database from 'better-sqlite3';
 import { mkdirSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -14,11 +14,11 @@ const DB_PATH = process.env.DATABASE_URL || path.join(DATA_DIR, 'clips.db');
 
 mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new DatabaseSync(DB_PATH);
+const db = new Database(DB_PATH);
 
 // Enable WAL mode for better concurrent read performance
-db.exec('PRAGMA journal_mode = WAL');
-db.exec('PRAGMA foreign_keys = ON');
+db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (

@@ -220,14 +220,22 @@ function toggleSidebar() { document.getElementById('sidebar').classList.toggle('
 
 // === Settings ===
 function openSettings() {
-  document.getElementById('api-key-input').value = localStorage.getItem('anthropic_api_key') || '';
+  const existing = localStorage.getItem('anthropic_api_key') || '';
+  document.getElementById('api-key-input').value = existing;
+  // Show first-run title vs update title
+  const h2 = document.querySelector('#settings-modal h2');
+  if (h2) h2.textContent = existing ? 'Update API Key' : 'API Key Setup';
   document.getElementById('settings-modal').style.display = '';
+  setTimeout(() => document.getElementById('api-key-input').focus(), 50);
 }
 function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; }
 function saveSettings() {
   const key = document.getElementById('api-key-input').value.trim();
-  if (key) localStorage.setItem('anthropic_api_key', key);
-  else localStorage.removeItem('anthropic_api_key');
+  if (!key) { alert('Please enter your Anthropic API key to continue.'); return; }
+  if (!key.startsWith('sk-ant-')) {
+    if (!confirm('This doesn\'t look like an Anthropic key (should start with sk-ant-). Save anyway?')) return;
+  }
+  localStorage.setItem('anthropic_api_key', key);
   closeSettings();
 }
 

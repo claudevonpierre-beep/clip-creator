@@ -142,6 +142,9 @@ function recordFail(ip) {
   authFails[ip] = [...(authFails[ip] || []), Date.now()];
 }
 
+// ── HEALTH CHECK ──────────────────────────────────────────────────────────────
+app.get('/health', (req, res) => res.json({ status: 'ok', ts: Date.now() }));
+
 // ── PAGES ──────────────────────────────────────────────────────────────────────
 
 // Root — serve main app (existing index.html) if authenticated
