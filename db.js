@@ -1,24 +1,23 @@
 /**
- * db.js — SQLite database using better-sqlite3
+ * db.js — SQLite database using Node v22+ built-in node:sqlite
+ * Enable via: NODE_OPTIONS=--experimental-sqlite (set in Railway env vars)
  */
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// DATA_DIR: use env var for Railway persistent volume, otherwise local ./data
 export const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const DB_PATH = process.env.DATABASE_URL || path.join(DATA_DIR, 'clips.db');
 
 mkdirSync(DATA_DIR, { recursive: true });
 
-const db = new Database(DB_PATH);
+const db = new DatabaseSync(DB_PATH);
 
-// Enable WAL mode for better concurrent read performance
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+db.exec('PRAGMA journal_mode = WAL');
+db.exec('PRAGMA foreign_keys = ON');
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
